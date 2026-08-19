@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { ErrorAlert } from '@/components/ui/ErrorAlert';
-import { Field, inputClass } from '@/components/ui/Field';
-import { ApiRequestError } from '@/lib/api/client';
-import { useLogin } from '@/lib/api/auth';
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { Field, inputClass } from "@/components/ui/Field";
+import { ApiRequestError } from "@/lib/api/client";
+import { useLogin } from "@/lib/api/auth";
 
 /**
  * Login form — US-F6.
@@ -22,8 +22,8 @@ import { useLogin } from '@/lib/api/auth';
  *  - `mustChangePassword=true` → `/settings/password` (F7 not yet implemented;
  *    landing there 404s — a known SPEC gap, not a bug here).
  *  - otherwise honor a same-origin relative `?next=` (open-redirect guarded),
- *    else default by role: `admin` → `/admin`, others → `/` (student/teacher
- *    home not yet implemented).
+ *    else default by role: `admin` → `/admin`, `student` → `/student`,
+ *    `teacher` → `/` (teacher home not yet implemented).
  * All redirects use `router.replace` so the login page does not stay in
  * history (browser back should not return to the login page).
  *
@@ -33,8 +33,8 @@ import { useLogin } from '@/lib/api/auth';
  */
 
 const schema = z.object({
-  username: z.string().min(1, '請輸入帳號').max(64, '帳號最長 64 字元'),
-  password: z.string().min(1, '請輸入密碼').max(128, '密碼最長 128 字元'),
+  username: z.string().min(1, "請輸入帳號").max(64, "帳號最長 64 字元"),
+  password: z.string().min(1, "請輸入密碼").max(128, "密碼最長 128 字元"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -47,12 +47,13 @@ type FormValues = z.infer<typeof schema>;
  * crafted `next`. Returns the role-based default when `next` is absent/invalid.
  */
 function resolveNext(next: string | null, role: string): string {
-  const fallback = role === 'admin' ? '/admin' : '/';
+  const fallback =
+    role === "admin" ? "/admin" : role === "student" ? "/student" : "/";
   if (!next) return fallback;
   // Must start with a single `/` and not `//` (which the browser treats as a
   // scheme-relative URL to a foreign origin).
-  if (!next.startsWith('/') || next.startsWith('//')) return fallback;
-  if (next === '/') return fallback;
+  if (!next.startsWith("/") || next.startsWith("//")) return fallback;
+  if (next === "/") return fallback;
   return next;
 }
 
@@ -67,7 +68,7 @@ export function LoginForm() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { username: '', password: '' },
+    defaultValues: { username: "", password: "" },
   });
 
   const onSubmit = handleSubmit(async (values) => {
@@ -77,10 +78,10 @@ export function LoginForm() {
         // F7 change-password page is not yet implemented — landing here 404s.
         // This is a known SPEC gap; the gate must still redirect so a
         // must-change-password user cannot proceed to protected routes.
-        router.replace('/settings/password');
+        router.replace("/settings/password");
         return;
       }
-      const dest = resolveNext(searchParams.get('next'), session.role);
+      const dest = resolveNext(searchParams.get("next"), session.role);
       router.replace(dest);
     } catch {
       // `login.error` drives the ErrorAlert; no extra handling here.
@@ -111,7 +112,7 @@ export function LoginForm() {
           type="text"
           autoComplete="username"
           aria-describedby="username-error"
-          {...register('username')}
+          {...register("username")}
           className={inputClass(errors.username)}
         />
       </Field>
@@ -122,7 +123,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           aria-describedby="password-error"
-          {...register('password')}
+          {...register("password")}
           className={inputClass(errors.password)}
         />
       </Field>
@@ -132,7 +133,7 @@ export function LoginForm() {
         disabled={isSubmitting}
         className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
       >
-        {isSubmitting ? '登入中…' : '登入'}
+        {isSubmitting ? "登入中…" : "登入"}
       </button>
     </form>
   );

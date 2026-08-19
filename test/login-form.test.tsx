@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeEach, vi, type Mock } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { LoginForm } from '@/features/auth/LoginForm';
+import { describe, expect, it, beforeEach, vi, type Mock } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { LoginForm } from "@/features/auth/LoginForm";
 
 /**
  * US-F6 login form component tests.
@@ -18,12 +18,12 @@ import { LoginForm } from '@/features/auth/LoginForm';
 const replace = vi.fn();
 const searchParams = new URLSearchParams();
 
-vi.mock('next/navigation', () => ({
+vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   useSearchParams: () => searchParams,
 }));
 
-vi.mock('@/lib/api/client', () => ({
+vi.mock("@/lib/api/client", () => ({
   apiRequest: vi.fn(),
   ApiRequestError: class ApiRequestError extends Error {
     readonly code: string;
@@ -35,7 +35,7 @@ vi.mock('@/lib/api/client', () => ({
       status: number,
     ) {
       super(error.message);
-      this.name = 'ApiRequestError';
+      this.name = "ApiRequestError";
       this.code = error.code;
       this.status = status;
       this.field = error.field;
@@ -43,7 +43,7 @@ vi.mock('@/lib/api/client', () => ({
   },
 }));
 
-import { apiRequest } from '@/lib/api/client';
+import { apiRequest } from "@/lib/api/client";
 
 function renderForm() {
   const queryClient = new QueryClient({
@@ -58,22 +58,22 @@ function renderForm() {
 }
 
 function stubCsrfCookie() {
-  Object.defineProperty(document, 'cookie', {
+  Object.defineProperty(document, "cookie", {
     writable: true,
-    value: '__Host-csrf=test-csrf-token',
+    value: "__Host-csrf=test-csrf-token",
   });
 }
 
 function makeSession(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    accountId: 'acct-1',
-    username: 'alice',
-    displayName: 'Alice',
-    role: 'admin',
+    accountId: "acct-1",
+    username: "alice",
+    displayName: "Alice",
+    role: "admin",
     canCreateCourse: false,
     mustChangePassword: false,
-    sessionId: 'sess-1',
-    expiresAt: '',
+    sessionId: "sess-1",
+    expiresAt: "",
     ...overrides,
   };
 }
@@ -81,142 +81,156 @@ function makeSession(overrides: Partial<Record<string, unknown>> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   replace.mockClear();
-  searchParams.delete('next');
+  searchParams.delete("next");
   stubCsrfCookie();
 });
 
-describe('LoginForm — validation', () => {
-  it('shows validation messages for empty fields', async () => {
+describe("LoginForm — validation", () => {
+  it("shows validation messages for empty fields", async () => {
     const user = userEvent.setup();
     renderForm();
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.click(screen.getByRole("button", { name: "登入" }));
 
-    expect(await screen.findByText('請輸入帳號')).toBeInTheDocument();
-    expect(screen.getByText('請輸入密碼')).toBeInTheDocument();
+    expect(await screen.findByText("請輸入帳號")).toBeInTheDocument();
+    expect(screen.getByText("請輸入密碼")).toBeInTheDocument();
     expect(apiRequest).not.toHaveBeenCalled();
   });
 });
 
-describe('LoginForm — happy path', () => {
-  it('submits without CSRF, seeds session cache, and redirects to next', async () => {
+describe("LoginForm — happy path", () => {
+  it("submits without CSRF, seeds session cache, and redirects to next", async () => {
     const user = userEvent.setup();
     (apiRequest as unknown as Mock).mockResolvedValueOnce(makeSession());
 
-    searchParams.set('next', '/admin/accounts/new');
+    searchParams.set("next", "/admin/accounts/new");
     renderForm();
-    await user.type(screen.getByLabelText('帳號'), 'alice');
-    await user.type(screen.getByLabelText('密碼'), 'a-valid-password');
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
 
     await waitFor(() => expect(replace).toHaveBeenCalled());
 
     // CSRF-exempt: mutate:false so no CSRF/Origin header path is taken.
     expect(apiRequest).toHaveBeenCalledTimes(1);
     const [path, opts] = (apiRequest as unknown as Mock).mock.calls[0];
-    expect(path).toBe('/auth/login');
+    expect(path).toBe("/auth/login");
     expect(opts).toMatchObject({
-      method: 'POST',
+      method: "POST",
       mutate: false,
-      body: { username: 'alice', password: 'a-valid-password' },
+      body: { username: "alice", password: "a-valid-password" },
     });
 
     // Honors the same-origin relative next.
-    expect(replace).toHaveBeenCalledWith('/admin/accounts/new');
+    expect(replace).toHaveBeenCalledWith("/admin/accounts/new");
   });
 
-  it('defaults to /admin for admin when next is absent', async () => {
+  it("defaults to /admin for admin when next is absent", async () => {
     const user = userEvent.setup();
     (apiRequest as unknown as Mock).mockResolvedValueOnce(makeSession());
 
     renderForm();
-    await user.type(screen.getByLabelText('帳號'), 'alice');
-    await user.type(screen.getByLabelText('密碼'), 'a-valid-password');
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/admin'));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"));
   });
 
-  it('defaults to / for non-admin', async () => {
+  it("defaults to / for non-admin", async () => {
     const user = userEvent.setup();
     (apiRequest as unknown as Mock).mockResolvedValueOnce(
-      makeSession({ role: 'teacher' }),
+      makeSession({ role: "teacher" }),
     );
 
     renderForm();
-    await user.type(screen.getByLabelText('帳號'), 'alice');
-    await user.type(screen.getByLabelText('密碼'), 'a-valid-password');
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
   });
 
-  it('does not write the password to any cache key other than the request body', async () => {
+  it("defaults to /student for student (Phase B)", async () => {
+    const user = userEvent.setup();
+    (apiRequest as unknown as Mock).mockResolvedValueOnce(
+      makeSession({ role: "student" }),
+    );
+
+    renderForm();
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/student"));
+  });
+
+  it("does not write the password to any cache key other than the request body", async () => {
     const user = userEvent.setup();
     (apiRequest as unknown as Mock).mockResolvedValueOnce(makeSession());
 
     renderForm();
-    await user.type(screen.getByLabelText('帳號'), 'alice');
-    await user.type(screen.getByLabelText('密碼'), 'secret-pw');
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "secret-pw");
+    await user.click(screen.getByRole("button", { name: "登入" }));
 
     await waitFor(() => expect(replace).toHaveBeenCalled());
     const [, opts] = (apiRequest as unknown as Mock).mock.calls[0];
-    expect(opts.body.password).toBe('secret-pw');
+    expect(opts.body.password).toBe("secret-pw");
   });
 });
 
-describe('LoginForm — mustChangePassword', () => {
-  it('redirects to /settings/password and ignores next', async () => {
+describe("LoginForm — mustChangePassword", () => {
+  it("redirects to /settings/password and ignores next", async () => {
     const user = userEvent.setup();
     (apiRequest as unknown as Mock).mockResolvedValueOnce(
       makeSession({ mustChangePassword: true }),
     );
 
-    searchParams.set('next', '/admin/accounts/new');
+    searchParams.set("next", "/admin/accounts/new");
     renderForm();
-    await user.type(screen.getByLabelText('帳號'), 'alice');
-    await user.type(screen.getByLabelText('密碼'), 'a-valid-password');
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
 
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith('/settings/password'),
+      expect(replace).toHaveBeenCalledWith("/settings/password"),
     );
     // next is intentionally NOT honored under must-change-password.
-    expect(replace).not.toHaveBeenCalledWith('/admin/accounts/new');
+    expect(replace).not.toHaveBeenCalledWith("/admin/accounts/new");
   });
 });
 
-describe('LoginForm — open-redirect guard', () => {
-  it('rejects a scheme-less // next and falls back to the role default', async () => {
+describe("LoginForm — open-redirect guard", () => {
+  it("rejects a scheme-less // next and falls back to the role default", async () => {
     const user = userEvent.setup();
     (apiRequest as unknown as Mock).mockResolvedValueOnce(makeSession());
 
-    searchParams.set('next', '//evil.com/path');
+    searchParams.set("next", "//evil.com/path");
     renderForm();
-    await user.type(screen.getByLabelText('帳號'), 'alice');
-    await user.type(screen.getByLabelText('密碼'), 'a-valid-password');
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/admin'));
-    expect(replace).not.toHaveBeenCalledWith('//evil.com/path');
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"));
+    expect(replace).not.toHaveBeenCalledWith("//evil.com/path");
   });
 
-  it('rejects an absolute https:// next and falls back to the role default', async () => {
+  it("rejects an absolute https:// next and falls back to the role default", async () => {
     const user = userEvent.setup();
     (apiRequest as unknown as Mock).mockResolvedValueOnce(makeSession());
 
-    searchParams.set('next', 'https://evil.com/path');
+    searchParams.set("next", "https://evil.com/path");
     renderForm();
-    await user.type(screen.getByLabelText('帳號'), 'alice');
-    await user.type(screen.getByLabelText('密碼'), 'a-valid-password');
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/admin'));
-    expect(replace).not.toHaveBeenCalledWith('https://evil.com/path');
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"));
+    expect(replace).not.toHaveBeenCalledWith("https://evil.com/path");
   });
 });
 
-describe('LoginForm — stable error codes', () => {
+describe("LoginForm — stable error codes", () => {
   async function submitWith(error: {
     code: string;
     message: string;
@@ -224,7 +238,7 @@ describe('LoginForm — stable error codes', () => {
     field?: string;
   }) {
     const user = userEvent.setup();
-    const { ApiRequestError } = await import('@/lib/api/client');
+    const { ApiRequestError } = await import("@/lib/api/client");
     (apiRequest as unknown as Mock).mockRejectedValueOnce(
       new ApiRequestError(
         {
@@ -237,31 +251,31 @@ describe('LoginForm — stable error codes', () => {
       ),
     );
     renderForm();
-    await user.type(screen.getByLabelText('帳號'), 'alice');
-    await user.type(screen.getByLabelText('密碼'), 'a-valid-password');
-    await user.click(screen.getByRole('button', { name: '登入' }));
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
   }
 
-  it('shows the AUTH_INVALID_CREDENTIALS message (covers disabled/unknown/wrong password)', async () => {
+  it("shows the AUTH_INVALID_CREDENTIALS message (covers disabled/unknown/wrong password)", async () => {
     await submitWith({
-      code: 'AUTH_INVALID_CREDENTIALS',
-      message: 'Invalid credentials',
+      code: "AUTH_INVALID_CREDENTIALS",
+      message: "Invalid credentials",
       status: 401,
     });
-    expect(await screen.findByText('帳號或密碼不正確。')).toBeInTheDocument();
+    expect(await screen.findByText("帳號或密碼不正確。")).toBeInTheDocument();
     // Raw backend detail must not leak.
-    expect(screen.queryByText('Invalid credentials')).not.toBeInTheDocument();
+    expect(screen.queryByText("Invalid credentials")).not.toBeInTheDocument();
   });
 
-  it('falls back to a generic message for an unknown code', async () => {
+  it("falls back to a generic message for an unknown code", async () => {
     await submitWith({
-      code: 'SOMETHING_NEW',
-      message: 'internal detail',
+      code: "SOMETHING_NEW",
+      message: "internal detail",
       status: 500,
     });
     expect(
-      await screen.findByText('發生未預期的錯誤，請稍後再試。'),
+      await screen.findByText("發生未預期的錯誤，請稍後再試。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText('internal detail')).not.toBeInTheDocument();
+    expect(screen.queryByText("internal detail")).not.toBeInTheDocument();
   });
 });

@@ -5,9 +5,12 @@
  * re-stringifying keys ad hoc. Add new domains here.
  */
 export const queryKeys = {
-  session: ['session'] as const,
+  session: ["session"] as const,
   accounts: {
-    all: ['accounts'] as const,
-    detail: (id: string) => ['accounts', id] as const,
+    all: ["accounts"] as const,
+    detail: (id: string) => ["accounts", id] as const,
+  },
+  myCourses: {
+    all: ["my-courses"] as const,
   },
 } as const;

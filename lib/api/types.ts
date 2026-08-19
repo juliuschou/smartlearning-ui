@@ -45,7 +45,7 @@ export interface ApiErrorEnvelope {
 export type ApiResponse<T> = ApiSuccessEnvelope<T> | ApiErrorEnvelope;
 
 /** Account roles recognized by the backend DTO. The UI only offers a subset. */
-export type AccountRole = 'admin' | 'teacher' | 'student';
+export type AccountRole = "admin" | "teacher" | "student";
 
 /** `POST /auth/login` request body. */
 export interface LoginPayload {
@@ -92,4 +92,35 @@ export interface SessionDto {
    * session expiry — rely on a 401 from the API instead.
    */
   expiresAt: string;
+}
+
+/**
+ * `Page<T>` — paginated list payload (envelope-unwrapped). The outer envelope's
+ * `meta` is `{ schemaVersion, requestId }`; pagination metadata lives in this
+ * inner `meta` (see backend frontend-api-reference §pagination).
+ */
+export interface Page<T> {
+  data: T[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+/**
+ * `MyCourseDto` from `GET /me/courses` (envelope-unwrapped, inside `Page<T>`).
+ * Guard: Session + StudentGuard. A student's active course roster projection.
+ */
+export interface MyCourseDto {
+  enrollmentId: string;
+  courseId: string;
+  name: string;
+  description: string | null;
+  status: string;
+  ownerAccountId: string;
+  enrolledAt: string;
+  createdAt: string;
+  updatedAt: string;
 }

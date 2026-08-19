@@ -21,6 +21,8 @@ const MESSAGES: Record<string, string> = {
   // Account creation
   CONFLICT: '此帳號名稱已被使用，請換一個。',
   VALIDATION_FAILED: '輸入內容不符合要求，請檢查欄位後再試一次。',
+  // Rate limit (US-F7 / R-F7-7)
+  RATE_LIMITED: '嘗試次數過多，請稍後再試。',
   // Transport
   NETWORK_ERROR: '無法連線到伺服器，請稍後再試。',
   INTERNAL_ERROR: '伺服器發生問題，請稍後再試。',

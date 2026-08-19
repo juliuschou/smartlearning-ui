@@ -62,6 +62,12 @@ export interface CreateAccountPayload {
   tempPassword: string;
 }
 
+/** `POST /auth/change-password` request body (US-F7). */
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
 /**
  * `AccountDto` — never includes password_hash.
  * Wire contract: UUID id, UTC ISO timestamps, stable field names.

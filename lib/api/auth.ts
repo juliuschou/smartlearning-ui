@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, type ApiRequestError } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/query-keys';
-import type { LoginPayload, SessionDto } from '@/lib/api/types';
+import type { ChangePasswordPayload, LoginPayload, SessionDto } from '@/lib/api/types';
 
 /**
  * Login via `POST /api/v1/auth/login`.
@@ -46,6 +46,40 @@ export function useLogout() {
       apiRequest<null>('/auth/logout', { method: 'POST', mutate: true }),
     onSuccess: () => {
       queryClient.clear();
+    },
+  });
+}
+
+/**
+ * Change password via `POST /api/v1/auth/change-password` (US-F7).
+ *
+ * Backend guard: Session + CSRF (NOT step-up — `currentPassword` is verified
+ * inline by the service). `mutate: true` attaches `X-CSRF-Token` + `Origin`.
+ *
+ * On success the backend rotates the session (all other sessions are revoked)
+ * and returns a fresh `SessionDto` with new `__Host-session` / `__Host-csrf`
+ * cookies. We seed the returned session into the session query cache so the
+ * `mustChangePassword` flag flips to `false` immediately without a refetch —
+ * the force-change flow can then redirect to the role home.
+ *
+ * Errors (stable `code`):
+ *  - `AUTH_INVALID_CREDENTIALS` — wrong `currentPassword`.
+ *  - `VALIDATION_FAILED` (field `newPassword`) — too short / common password.
+ *  - `RATE_LIMITED` — too many failed login attempts (the change-password
+ *    endpoint does not itself rate-limit, but a prior throttled login can
+ *    leave the session in a state where this surfaces; handled defensively).
+ */
+export function useChangePassword() {
+  const queryClient = useQueryClient();
+  return useMutation<SessionDto, ApiRequestError, ChangePasswordPayload>({
+    mutationFn: (payload) =>
+      apiRequest<SessionDto>('/auth/change-password', {
+        method: 'POST',
+        body: payload,
+        mutate: true,
+      }),
+    onSuccess: (session) => {
+      queryClient.setQueryData(queryKeys.session, session);
     },
   });
 }

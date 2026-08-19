@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "@/lib/auth/session";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -52,7 +53,15 @@ export default function StudentLayout({
         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
           學員專區
         </span>
-        <LogoutButton />
+        <div className="flex items-center gap-4">
+          <Link
+            href="/settings/password"
+            className="text-sm font-medium text-zinc-700 transition hover:text-zinc-900 dark:text-zinc-200 dark:hover:text-zinc-50"
+          >
+            變更密碼
+          </Link>
+          <LogoutButton />
+        </div>
       </header>
       {children}
     </div>

@@ -1,0 +1,35 @@
+// `ApiRequestError` is one shape callers pass in; we only need its `code`.
+
+/**
+ * Stable error-code → Chinese message map.
+ *
+ * The backend's `error.message` is a human description, not a code, and for
+ * server errors it may contain internal detail that should not leak to users.
+ * We classify by the stable `code` and show a curated message instead. Unknown
+ * codes fall back to a generic message — never the raw `message`.
+ */
+
+const MESSAGES: Record<string, string> = {
+  // Auth / authorization
+  UNAUTHORIZED: '請先登入後再繼續。',
+  AUTH_SESSION_EXPIRED: '登入已過期，請重新登入。',
+  AUTH_INVALID_CREDENTIALS: '帳號或密碼不正確。',
+  AUTH_CSRF_INVALID: '安全驗證失敗，請重新整理頁面後再試一次。',
+  AUTH_STEP_UP_REQUIRED: '此操作需要再次輸入密碼以進階驗證。',
+  AUTH_PASSWORD_CHANGE_REQUIRED: '請先變更密碼後再繼續。',
+  FORBIDDEN: '你沒有權限執行此操作。',
+  // Account creation
+  CONFLICT: '此帳號名稱已被使用，請換一個。',
+  VALIDATION_FAILED: '輸入內容不符合要求，請檢查欄位後再試一次。',
+  // Transport
+  NETWORK_ERROR: '無法連線到伺服器，請稍後再試。',
+  INTERNAL_ERROR: '伺服器發生問題，請稍後再試。',
+};
+
+const GENERIC_MESSAGE = '發生未預期的錯誤，請稍後再試。';
+
+/** Resolve a localized message for a stable error code (or any object with `code`). */
+export function errorMessage(codeOrError: string | { code: string }): string {
+  const code = typeof codeOrError === 'string' ? codeOrError : codeOrError.code;
+  return MESSAGES[code] ?? GENERIC_MESSAGE;
+}

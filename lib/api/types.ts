@@ -1,0 +1,95 @@
+/**
+ * Wire types mirroring the backend `/api/v1` REST contract.
+ *
+ * Envelope shape: `{ data, meta, error }` — see
+ * `smartLearning-backend/src/common/http/api-envelope.ts`. Success responses
+ * carry `data`; the API client unwraps to `body.data`. Health probes are raw
+ * (not enveloped) and must not go through the same client.
+ *
+ * Keep these aligned with the backend DTOs (each feature module's
+ * `api/dto` directory) — the source of truth. The OpenAPI spec at
+ * `/api/docs-json` is machine-readable but shows inner types after the
+ * envelope; these types are already envelope-unwrapped.
+ */
+
+/** Stable error detail carried in the `error` field of the envelope. */
+export interface ApiError {
+  /** Stable uppercase snake_case code (e.g. `AUTH_CSRF_INVALID`). */
+  code: string;
+  /** Human description — NOT a code; classify by `code`. */
+  message: string;
+  /** Optional field/item path, e.g. "username" or "items[2].text". */
+  field?: string;
+  /** True when the error blocks the operation. */
+  blocking: boolean;
+  /** Optional actionable next step. */
+  nextStep?: string;
+  /** Optional retry hint (transport serializes absent as null). */
+  retryAfterSeconds?: number | null;
+}
+
+/** Successful envelope: client code reads `body.data`. */
+export interface ApiSuccessEnvelope<T> {
+  data: T;
+  meta: { schemaVersion: number; requestId: string };
+  error: null;
+}
+
+/** Error envelope: `data` is null, `error` present. */
+export interface ApiErrorEnvelope {
+  data: null;
+  meta: { schemaVersion: number; requestId: string };
+  error: ApiError;
+}
+
+export type ApiResponse<T> = ApiSuccessEnvelope<T> | ApiErrorEnvelope;
+
+/** Account roles recognized by the backend DTO. The UI only offers a subset. */
+export type AccountRole = 'admin' | 'teacher' | 'student';
+
+/** `POST /auth/login` request body. */
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+/** `POST /admin/accounts` request body. */
+export interface CreateAccountPayload {
+  username: string;
+  displayName: string;
+  role: AccountRole;
+  canCreateCourse: boolean;
+  tempPassword: string;
+}
+
+/**
+ * `AccountDto` — never includes password_hash.
+ * Wire contract: UUID id, UTC ISO timestamps, stable field names.
+ */
+export interface AccountDto {
+  id: string;
+  username: string;
+  displayName: string;
+  role: string;
+  status: string;
+  canCreateCourse: boolean;
+  mustChangePassword: boolean;
+  disabledAt: string | null;
+  createdAt: string;
+}
+
+/** `SessionDto` from `GET /auth/session` (envelope-unwrapped). */
+export interface SessionDto {
+  accountId: string;
+  username: string;
+  displayName: string;
+  role: string;
+  canCreateCourse: boolean;
+  mustChangePassword: boolean;
+  sessionId: string;
+  /**
+   * Currently `""` on the backend (E-2 deferred). Do NOT use this to judge
+   * session expiry — rely on a 401 from the API instead.
+   */
+  expiresAt: string;
+}

@@ -1,9 +1,11 @@
 # US-F6 — 使用者登入、登出與 Web Session（前端）
 
 ## Goal
+
 讓 active 帳號能以帳密登入、取得安全 session、依 `next` 重導回原目的地；mustChangePassword 使用者登入後重導改密碼路由；已登入者可登出，登出後清除 query 快取並以 replace navigation 回登入頁。不實作 F7 變更密碼頁。
 
 ## Acceptance criteria
+
 - 登入頁表單（帳號 + 密碼），中文驗證訊息。
 - `useLogin` 不附 CSRF（`mutate: false`）；成功後寫 session 快取、依 `next` 重導（open-redirect 防護）。
 - `useLogout` 附 CSRF；成功後 `queryClient.clear()`。
@@ -13,6 +15,7 @@
 - 抽 `Field`/`inputClass` 共用到 `components/ui/Field.tsx`，`AccountCreateForm` 改 import。
 
 ## Checklist
+
 - [x] Plan + acceptance criteria
 - [x] 1. `lib/api/types.ts` 加 `LoginPayload`
 - [x] 2. `components/ui/Field.tsx` 抽共用；`AccountCreateForm` 改用
@@ -26,6 +29,7 @@
 - [x] 10. 驗證：typegen/typecheck/lint/build/test
 
 ## Results
+
 - **What changed**: 登入頁表單（`LoginForm`）、`useLogin`/`useLogout` hooks（login 不附 CSRF via `mutate:false`；logout 成功後 `queryClient.clear()`）、admin shell 加 mustChangePassword gate + 登出鈕（`LogoutButton`）、`Field`/`inputClass` 抽到 `components/ui/Field.tsx` 並讓 `AccountCreateForm` 改用。
 - **Where**: 新增 `lib/api/auth.ts`、`features/auth/LoginForm.tsx`、`components/ui/Field.tsx`、`components/auth/LogoutButton.tsx`、`test/login-form.test.tsx`、`test/logout.test.tsx`；改寫 `app/login/page.tsx`、`app/(admin)/layout.tsx`；微調 `lib/api/types.ts`（`LoginPayload`）、`features/admin/AccountCreateForm.tsx`（共用 Field）。
 - **How verified**: `npx next typegen` ✓、`npm run typecheck` ✓（0 errors）、`npm run lint:check` ✓（0 errors，2 pre-existing warnings）、`npm run build` ✓（4 routes 靜態預渲染）、`npm test` ✓（3 files / 21 tests passed）。
@@ -33,17 +37,56 @@
 - **Note**: 修正了既有 `account-create-form.test.tsx` 的 `ApiRequestError` mock constructor 簽章（與真實 `(error: ApiError, status)` 對齊），一併讓 typecheck 全綠。
 - **未執行**: 真實後端手動/瀏覽器流程（需後端 `npm run start:dev` + migrated DB + bootstrap admin）。指令見原計畫 §驗證手動流程。
 
+## 2026-08-20 — US-F7 使用者設定與變更密碼（完成；DB 驗證受環境阻塞）
+
+### Goal and acceptance criteria
+
+- [x] 完成 backend R-F7-3 common-password rejection 與 R-F7-7 account/source dual login rate limit，保留既有未相關工作樹變更。
+- [x] 完成/修正 role-neutral `/settings/password`、force-change gate、voluntary change、session cache seed/rotation 與 CSRF。
+- [x] 新增 backend policy/limiter 與 frontend ChangePasswordForm regression tests。
+- [ ] 跑 targeted → module/full verification，清楚記錄 DB-required 測試是否可執行；DB-backed verification remains blocked by PostgreSQL availability.
+
+### Checkpoints
+
+- [x] A — audit and harden existing backend F7 work.
+- [x] B — fix frontend force-change/retry behavior and add F7 component tests.
+- [x] C — run verification, inspect both repositories, and record results; static checks pass, DB checks are blocked.
+
+### Risk & rollback
+
+- Risk: high (authentication, password state, session rotation, rate limiting).
+- Rollback: revert/remove only F7 files and wiring; no schema migration. Preserve unrelated backend README/live-session/lesson changes.
+
+### Dependencies & environment
+
+- Node 24+, backend migrated `smartlearning_test` for DB-backed e2e, explicit backend CORS including `http://localhost:3001` for browser smoke.
+
+### Working notes
+
+- StepUpDialog/useStepUp are explicitly deferred to F8; self-service change-password uses inline current-password verification.
+- Backend is a separate dirty repository; UI is clean at start. Do not commit without explicit request.
+
+### Results
+
+- **What changed**: hardened the existing change-password form with latched force-change mode and Unicode code-point validation; carried/displayed `retryAfterSeconds`; fixed stale F7 comments; added the dedicated `ChangePasswordForm` Vitest suite.
+- **Frontend verification**: `npx next typegen`, `npm test` (5 files / 36 tests), `npm run typecheck`, `npm run lint:check`, and `npm run build` all passed. One pre-existing React Hook Form compiler warning remains in `AccountCreateForm.tsx`; Vite also reports a future ESM config warning.
+- **Backend verification**: targeted typecheck/lint/format/build and 3 F7-related unit suites (33 tests) passed; the full backend static/unit pass also passed (21 suites / 120 tests before the final targeted additions).
+- **Blocked**: `prisma:migrate:status`, auth-rate-limit/auth-courses e2e, and identity integration could not reach PostgreSQL at `localhost:5432` (`P1001`). Guarded suites returned early, so they are not integration evidence.
+
 ## Known gaps (mark in code + delivery)
-- mustChangePassword=true 重導 `/settings/password` → F7 頁面尚未實作（404 預期）。
+
+- F6 historical note: the original mustChangePassword redirect pointed to a not-yet-implemented F7 route; US-F7 work below supersedes that gap.
 - 學員/老師專屬首頁尚未實作；非 admin 登入暫重導 `/`。
 
 ## Risk & Rollback
+
 - 風險等級：中。觸碰 auth 路由與 admin gate，前端可逆、無資料遷移。
 - 受影響：`app/login`、`app/(admin)` admin shell、API client 使用方式（login 不附 CSRF）。
 - Rollback：還原 `app/login/page.tsx` 為 placeholder、還原 `app/(admin)/layout.tsx`、移除新檔案。`apiRequest` 不需改本體（login 用 `mutate: false`）。
 - 監控信號：cookie/token 不出現在 log（前端不 log credentials）。
 
 ## Dependencies & Environment
+
 - Node 24+、Next 16.3.1、React 19、React Query 5、zod 4、react-hook-form 7。
 - 後端 `/api/v1/auth/login|session|logout` 已實作（`NEXT_PUBLIC_API_BASE`，預設 `http://localhost:3000/api/v1`）。
 - `npx next typegen` 產生 `LayoutProps`/`PageProps`（tsc --noEmit 前必須先跑）。

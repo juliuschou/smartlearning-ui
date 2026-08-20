@@ -93,10 +93,7 @@ export interface SessionDto {
   canCreateCourse: boolean;
   mustChangePassword: boolean;
   sessionId: string;
-  /**
-   * Currently `""` on the backend (E-2 deferred). Do NOT use this to judge
-   * session expiry — rely on a 401 from the API instead.
-   */
+  /** ISO-8601 expiry returned by the backend. API 401 remains authoritative if it expires. */
   expiresAt: string;
 }
 

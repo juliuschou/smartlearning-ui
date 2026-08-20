@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { redirect, usePathname } from 'next/navigation';
-import { useSession } from '@/lib/auth/session';
-import { LogoutButton } from '@/components/auth/LogoutButton';
+import Link from "next/link";
+import { redirect, usePathname } from "next/navigation";
+import { useSession } from "@/lib/auth/session";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 
 /**
  * Protected admin shell. Wraps everything under `app/(admin)/`.
@@ -11,9 +11,8 @@ import { LogoutButton } from '@/components/auth/LogoutButton';
  * Gates (in order):
  *  1. While session is loading, show a placeholder.
  *  2. `mustChangePassword=true` → redirect to `/settings/password` *before* the
- *     role check. F7 (the change-password page) is not yet implemented, so this
- *     lands on a 404 — a known SPEC gap (the gate still must block protected
- *     routes for a must-change-password user).
+ *     role check. The F7 password page is the only allowed destination until
+ *     the user completes the change.
  *  3. Not authenticated or non-admin → redirect to `/login?next=…`, preserving
  *     the intended destination for the post-login redirect (US-F6 honors it).
  *
@@ -36,12 +35,11 @@ export default function AdminLayout({
   }
 
   if (session?.mustChangePassword) {
-    // F7 change-password page not yet implemented → 404 (known gap).
-    redirect('/settings/password');
+    redirect("/settings/password");
   }
 
-  if (!session || session.role !== 'admin') {
-    const dest = encodeURIComponent(pathname ?? '/admin');
+  if (!session || session.role !== "admin") {
+    const dest = encodeURIComponent(pathname ?? "/admin");
     redirect(`/login?next=${dest}`);
   }
 

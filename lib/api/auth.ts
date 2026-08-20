@@ -1,7 +1,11 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest, type ApiRequestError } from '@/lib/api/client';
-import { queryKeys } from '@/lib/api/query-keys';
-import type { ChangePasswordPayload, LoginPayload, SessionDto } from '@/lib/api/types';
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, type ApiRequestError } from "@/lib/api/client";
+import { queryKeys } from "@/lib/api/query-keys";
+import type {
+  ChangePasswordPayload,
+  LoginPayload,
+  SessionDto,
+} from "@/lib/api/types";
 
 /**
  * Login via `POST /api/v1/auth/login`.
@@ -21,8 +25,8 @@ export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation<SessionDto, ApiRequestError, LoginPayload>({
     mutationFn: (payload) =>
-      apiRequest<SessionDto>('/auth/login', {
-        method: 'POST',
+      apiRequest<SessionDto>("/auth/login", {
+        method: "POST",
         body: payload,
         mutate: false,
       }),
@@ -43,7 +47,7 @@ export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation<null, ApiRequestError, void>({
     mutationFn: () =>
-      apiRequest<null>('/auth/logout', { method: 'POST', mutate: true }),
+      apiRequest<null>("/auth/logout", { method: "POST", mutate: true }),
     onSuccess: () => {
       queryClient.clear();
     },
@@ -65,16 +69,15 @@ export function useLogout() {
  * Errors (stable `code`):
  *  - `AUTH_INVALID_CREDENTIALS` — wrong `currentPassword`.
  *  - `VALIDATION_FAILED` (field `newPassword`) — too short / common password.
- *  - `RATE_LIMITED` — too many failed login attempts (the change-password
- *    endpoint does not itself rate-limit, but a prior throttled login can
- *    leave the session in a state where this surfaces; handled defensively).
+ *  - `RATE_LIMITED` is a login response; the form renders it defensively from
+ *    the shared stable error-code contract.
  */
 export function useChangePassword() {
   const queryClient = useQueryClient();
   return useMutation<SessionDto, ApiRequestError, ChangePasswordPayload>({
     mutationFn: (payload) =>
-      apiRequest<SessionDto>('/auth/change-password', {
-        method: 'POST',
+      apiRequest<SessionDto>("/auth/change-password", {
+        method: "POST",
         body: payload,
         mutate: true,
       }),

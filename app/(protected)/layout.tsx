@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { redirect, usePathname } from 'next/navigation';
-import { useSession } from '@/lib/auth/session';
-import { LogoutButton } from '@/components/auth/LogoutButton';
+import { redirect, usePathname } from "next/navigation";
+import { useSession } from "@/lib/auth/session";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 
 /**
  * Protected shell for authenticated-only, role-neutral settings. Wraps
@@ -37,7 +37,7 @@ export default function ProtectedLayout({
   }
 
   if (!session) {
-    const dest = encodeURIComponent(pathname ?? '/settings/password');
+    const dest = encodeURIComponent(pathname ?? "/settings/password");
     redirect(`/login?next=${dest}`);
   }
 

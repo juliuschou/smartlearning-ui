@@ -19,8 +19,8 @@ import { useLogin } from "@/lib/api/auth";
  * session query cache (no immediate `/auth/session` refetch).
  *
  * Redirects:
- *  - `mustChangePassword=true` → `/settings/password` (F7 not yet implemented;
- *    landing there 404s — a known SPEC gap, not a bug here).
+ *  - `mustChangePassword=true` → `/settings/password` (the F7 gate target;
+ *    `next` is intentionally ignored until the password is changed).
  *  - otherwise honor a same-origin relative `?next=` (open-redirect guarded),
  *    else default by role: `admin` → `/admin`, `student` → `/student`,
  *    `teacher` → `/` (teacher home not yet implemented).
@@ -75,9 +75,8 @@ export function LoginForm() {
     try {
       const session = await login.mutateAsync(values);
       if (session.mustChangePassword) {
-        // F7 change-password page is not yet implemented — landing here 404s.
-        // This is a known SPEC gap; the gate must still redirect so a
-        // must-change-password user cannot proceed to protected routes.
+        // Force-change users must reach the gate target before any role home or
+        // caller-supplied destination is allowed.
         router.replace("/settings/password");
         return;
       }

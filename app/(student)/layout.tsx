@@ -11,9 +11,8 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
  * Gates (in order):
  *  1. While session is loading, show a placeholder.
  *  2. `mustChangePassword=true` → redirect to `/settings/password` *before* the
- *     role check. F7 (the change-password page) is not yet implemented, so this
- *     lands on a 404 — a known SPEC gap (the gate still must block protected
- *     routes for a must-change-password user).
+ *     role check. The F7 password page is the only allowed destination until
+ *     the user completes the change.
  *  3. Not authenticated or non-student → redirect to `/login?next=…`, preserving
  *     the intended destination for the post-login redirect (US-F6 honors it).
  *     Non-students (admin/teacher) are redirected away so the student page is
@@ -38,7 +37,6 @@ export default function StudentLayout({
   }
 
   if (session?.mustChangePassword) {
-    // F7 change-password page not yet implemented → 404 (known gap).
     redirect("/settings/password");
   }
 

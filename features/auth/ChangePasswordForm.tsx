@@ -39,16 +39,18 @@ import { useSession } from "@/lib/auth/session";
  *  - `RATE_LIMITED` → too many attempts (curated message).
  */
 
+const unicodeLength = (value: string): number => Array.from(value).length;
+
 const schema = z
   .object({
     currentPassword: z
       .string()
       .min(1, "請輸入目前的密碼")
-      .max(128, "密碼最長 128 字元"),
+      .refine((value) => unicodeLength(value) <= 128, "密碼最長 128 字元"),
     newPassword: z
       .string()
-      .min(12, "新密碼至少 12 字元")
-      .max(128, "新密碼最長 128 字元"),
+      .refine((value) => unicodeLength(value) >= 12, "新密碼至少 12 字元")
+      .refine((value) => unicodeLength(value) <= 128, "新密碼最長 128 字元"),
     confirmPassword: z.string().min(1, "請再次輸入新密碼"),
   })
   .refine((v) => v.newPassword === v.confirmPassword, {
@@ -72,7 +74,10 @@ export function ChangePasswordForm() {
   const { session } = useSession();
   const router = useRouter();
   const [done, setDone] = useState(false);
-  const wasForceChange = session?.mustChangePassword === true;
+  // The protected layout waits for the session before mounting this form. Capture
+  // the initial mode once so cache seeding cannot make a forced change look
+  // voluntary before the success redirect runs.
+  const [wasForceChange] = useState(() => session?.mustChangePassword === true);
 
   const {
     register,
@@ -80,7 +85,11 @@ export function ChangePasswordForm() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
   });
 
   // After a successful force-change the session cache flips mustChangePassword
@@ -106,14 +115,17 @@ export function ChangePasswordForm() {
   });
 
   const apiError =
-    changePassword.error instanceof ApiRequestError ? changePassword.error : null;
+    changePassword.error instanceof ApiRequestError
+      ? changePassword.error
+      : null;
 
   // Field-scoped backend validation (e.g. common-password rejection) carries a
   // safe human message in `error.message`; surface it inline on newPassword.
-  const newPasswordServerError =
-    apiError?.code === "VALIDATION_FAILED" && apiError.field === "newPassword"
-      ? apiError.message
-      : undefined;
+  const isNewPasswordValidation =
+    apiError?.code === "VALIDATION_FAILED" && apiError.field === "newPassword";
+  const newPasswordServerError = isNewPasswordValidation
+    ? apiError?.message
+    : undefined;
 
   if (done) {
     return (
@@ -145,7 +157,7 @@ export function ChangePasswordForm() {
           : "變更你的密碼。新密碼須為 12–128 字元，允許 passphrase，不須特定大小寫、數字或符號組合。"}
       </p>
 
-      {apiError && apiError.code !== "VALIDATION_FAILED" ? (
+      {apiError && !isNewPasswordValidation ? (
         <ErrorAlert error={apiError} id="form-error" />
       ) : null}
 

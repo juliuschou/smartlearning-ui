@@ -1,5 +1,5 @@
-import type { ApiRequestError } from '@/lib/api/client';
-import { errorMessage } from '@/lib/api/error-messages';
+import type { ApiRequestError } from "@/lib/api/client";
+import { errorMessage } from "@/lib/api/error-messages";
 
 /**
  * Stable, accessible error alert. Renders a localized message derived from the
@@ -11,7 +11,7 @@ import { errorMessage } from '@/lib/api/error-messages';
 export function ErrorAlert({
   error,
   id,
-  className = '',
+  className = "",
 }: {
   error: ApiRequestError | { code: string } | null | undefined;
   id?: string;
@@ -19,6 +19,12 @@ export function ErrorAlert({
 }) {
   if (!error) return null;
   const message = errorMessage(error);
+  const retryAfterSeconds =
+    "retryAfterSeconds" in error &&
+    typeof error.retryAfterSeconds === "number" &&
+    error.retryAfterSeconds > 0
+      ? Math.ceil(error.retryAfterSeconds)
+      : null;
   return (
     <div
       id={id}
@@ -26,8 +32,13 @@ export function ErrorAlert({
       aria-live="assertive"
       className={`rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200 ${className}`}
     >
-      <span aria-hidden="true" className="mr-1.5">⚠</span>
+      <span aria-hidden="true" className="mr-1.5">
+        ⚠
+      </span>
       {message}
+      {retryAfterSeconds !== null
+        ? `（約 ${retryAfterSeconds} 秒後可再試）`
+        : null}
     </div>
   );
 }

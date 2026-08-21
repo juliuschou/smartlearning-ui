@@ -136,10 +136,24 @@ describe("LoginForm — happy path", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"));
   });
 
-  it("defaults to / for non-admin", async () => {
+  it("defaults to /teacher for teacher when next is absent", async () => {
     const user = userEvent.setup();
     (apiRequest as unknown as Mock).mockResolvedValueOnce(
       makeSession({ role: "teacher" }),
+    );
+
+    renderForm();
+    await user.type(screen.getByLabelText("帳號"), "alice");
+    await user.type(screen.getByLabelText("密碼"), "a-valid-password");
+    await user.click(screen.getByRole("button", { name: "登入" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/teacher"));
+  });
+
+  it("defaults to / for an unknown role", async () => {
+    const user = userEvent.setup();
+    (apiRequest as unknown as Mock).mockResolvedValueOnce(
+      makeSession({ role: "unknown" }),
     );
 
     renderForm();

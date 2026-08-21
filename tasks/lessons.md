@@ -28,3 +28,24 @@
 - **偵測訊號**：`npm run lint:check` 在 `ChangePasswordForm.tsx` 的 ref 初始化行報 4 個 errors，即使 targeted tests/typecheck 通過。
 - **預防規則**：若 component mount 時已有 session，使用 lazy `useState` 捕捉一次性初始模式；不要在 render 階段讀寫 ref。重新跑 lint 不能由 unit test 取代。
 - **Tripwire**：任何新增 render-phase `ref.current` 讀寫後，先跑 `npm run lint:check`，再宣稱 React 19/Compiler UI slice 完成。
+
+## Vitest hoisted mocks must not capture uninitialized locals
+
+- **失敗模式**：新增的 `teacher-layout.test.tsx` 在 `vi.mock("next/navigation", ...)` factory 直接引用尚未初始化的 `redirect`，Vitest hoist 先執行 factory，造成 `ReferenceError: Cannot access 'redirect' before initialization`，整個 suite 在收集階段 0 tests。
+- **偵測訊號**：targeted `npm test` 顯示 5 suites passed、1 suite failed，錯誤指向 mock factory 而非 assertion。
+- **預防規則**：Vitest hoisted mock factory 使用可變 mock state 時，統一透過 `vi.hoisted(() => ...)` 建立 `redirect`、pathname、session 等 mock；不要在 factory 閉包捕捉一般 top-level `const`。
+- **Tripwire**：新增含 `vi.mock` 的 route/layout 測試後，先跑該單一 suite；若錯誤發生於 test collection，先檢查 hoisting，再診斷 production code。
+
+## Avoid broad replacement inside already-qualified mock references
+
+- **失敗模式**：修正 `vi.hoisted` 後以全域字串替換 `pathnameState.value`，把已正確的 `mocks.pathnameState.value` 再次改成 `mocks.mocks.pathnameState.value`。
+- **偵測訊號**：targeted suite 中所有 layout tests 在 render 前以 `Cannot read properties of undefined (reading 'pathnameState')` 失敗。
+- **預防規則**：對已命名/限定的 mock state 使用精確上下文替換，避免 `replace_all` 套用到新前綴；修正後先讀取變更行再執行 suite。
+- **Tripwire**：每次 test mock 結構重寫後，先跑單一測試檔並檢查錯誤是否發生在 collection/render setup，而非立即擴大到全套件。
+
+## Typecheck test files under `globals: true` still need imports
+
+- **失敗模式**：Vitest config 啟用 `globals: true`，但新測試依賴 `beforeEach` 未顯式 import；Vitest 執行通過，TypeScript 卻報 `TS2304: Cannot find name 'beforeEach'`。
+- **偵測訊號**：targeted tests 全部通過後，`npm run typecheck` 仍在 test file 報未定義符號。
+- **預防規則**：測試檔一律從 `vitest` 顯式 import 使用到的 lifecycle/assertion APIs；不要把 runtime globals 當成 TypeScript declarations。
+- **Tripwire**：新增或修改 test imports 後，立即跑 `npm run typecheck`，不要只依賴 Vitest pass。

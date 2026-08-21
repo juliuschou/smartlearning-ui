@@ -25,8 +25,8 @@ import { useSession } from "@/lib/auth/session";
  * Two modes (decided from `useSession`):
  *  - Force-change (`mustChangePassword=true`): after success, redirect to the
  *    role-based home. The `(protected)` layout allows this user through to
- *    this page; the `(admin)`/`(student)` layouts gate them out of everything
- *    else until the flag clears.
+ *    this page; the role-specific layouts gate them out of everything else
+ *    until the flag clears.
  *  - Voluntary change: after success, show a success banner and stay on the
  *    page (the new session is already seeded).
  *
@@ -66,7 +66,13 @@ type FormValues = z.infer<typeof schema>;
 
 /** Resolve the role-based home for the force-change redirect. */
 function roleHome(role: string): string {
-  return role === "admin" ? "/admin" : role === "student" ? "/student" : "/";
+  return role === "admin"
+    ? "/admin"
+    : role === "student"
+      ? "/student"
+      : role === "teacher"
+        ? "/teacher"
+        : "/";
 }
 
 export function ChangePasswordForm() {

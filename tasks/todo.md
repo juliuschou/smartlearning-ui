@@ -44,13 +44,13 @@
 - [x] 完成 backend R-F7-3 common-password rejection 與 R-F7-7 account/source dual login rate limit，保留既有未相關工作樹變更。
 - [x] 完成/修正 role-neutral `/settings/password`、force-change gate、voluntary change、session cache seed/rotation 與 CSRF。
 - [x] 新增 backend policy/limiter 與 frontend ChangePasswordForm regression tests。
-- [ ] 跑 targeted → module/full verification，清楚記錄 DB-required 測試是否可執行；DB-backed verification remains blocked by PostgreSQL availability.
+- [x] 跑 targeted → module/full verification；PostgreSQL 已可用，DB-backed verification 完成。
 
 ### Checkpoints
 
 - [x] A — audit and harden existing backend F7 work.
 - [x] B — fix frontend force-change/retry behavior and add F7 component tests.
-- [x] C — run verification, inspect both repositories, and record results; static checks pass, DB checks are blocked.
+- [x] C — run verification, inspect both repositories, and record results; static and DB-backed checks pass.
 
 ### Risk & rollback
 
@@ -71,7 +71,7 @@
 - **What changed**: hardened the existing change-password form with latched force-change mode and Unicode code-point validation; carried/displayed `retryAfterSeconds`; fixed stale F7 comments; added the dedicated `ChangePasswordForm` Vitest suite.
 - **Frontend verification**: `npx next typegen`, `npm test` (5 files / 36 tests), `npm run typecheck`, `npm run lint:check`, and `npm run build` all passed. One pre-existing React Hook Form compiler warning remains in `AccountCreateForm.tsx`; Vite also reports a future ESM config warning.
 - **Backend verification**: targeted typecheck/lint/format/build and 3 F7-related unit suites (33 tests) passed; the full backend static/unit pass also passed (21 suites / 120 tests before the final targeted additions).
-- **Blocked**: `prisma:migrate:status`, auth-rate-limit/auth-courses e2e, and identity integration could not reach PostgreSQL at `localhost:5432` (`P1001`). Guarded suites returned early, so they are not integration evidence.
+- **DB-backed verification**: `NODE_ENV=test npm run prisma:migrate:status` passed with 12 migrations and 0 pending; auth-rate-limit e2e passed (7/7), auth-courses e2e passed (14/14), and identity integration passed (7/7). The original `P1001` was not reproduced; only non-fatal Nest `LegacyRouteConverter` startup warnings appeared.
 
 ## Known gaps (mark in code + delivery)
 
@@ -90,3 +90,45 @@
 - Node 24+、Next 16.3.1、React 19、React Query 5、zod 4、react-hook-form 7。
 - 後端 `/api/v1/auth/login|session|logout` 已實作（`NEXT_PUBLIC_API_BASE`，預設 `http://localhost:3000/api/v1`）。
 - `npx next typegen` 產生 `LayoutProps`/`PageProps`（tsc --noEmit 前必須先跑）。
+
+## 2026-08-21 — 角色專屬首頁（完成）
+
+### Goal and acceptance criteria
+
+- [x] Admin 登入後可在既有 admin shell 下進入 `/admin`，看到 accessible heading、說明與 `/admin/accounts/new` CTA。
+- [x] Student `/student` 與 `useMyCourses()` 的 student-only gate、loading/error/empty/data 狀態維持不變。
+- [x] Teacher 新增受保護 `/teacher` route group，landing 只顯示 `SessionDto` 的 displayName、username、role、canCreateCourse。
+- [x] Admin/student/teacher 無 `next` 時分別導向 `/admin`、`/student`、`/teacher`；未知 role 維持 `/` 防禦性 fallback。
+- [x] `mustChangePassword` 優先於 `next` 與 role check；forced teacher password change 完成後導向 `/teacher`。
+- [x] 未登入/錯誤 role 在 children render 前導向 encoded `/login?next=...`；既有 open-redirect 防護不退化。
+- [x] 不修改 backend、schema、API/query contract、public `/`、student flow 或新增依賴/mock API 資料。
+
+### Checkpoints
+
+- [x] A — 更新 login/password-change role mapping 與 auth regression tests。
+- [x] B — 新增 admin landing、teacher layout/page/view。
+- [x] C — 新增 admin/teacher route and component regression tests。
+- [x] D — 執行 typegen、targeted tests、typecheck、lint、build、diff check，並記錄結果。
+
+### Risk & rollback
+
+- Risk: medium（auth-adjacent redirect 與 protected route）；無資料遷移或 backend 變更。
+- Rollback: 僅移除本 slice 新檔案、teacher mapping 與對應 tests；保留既有未提交 `tasks/todo.md` 內容，不 reset 整個 working tree。
+
+### Dependencies & environment
+
+- UI repo `/home/user/projects/smartLearning/smartLearning-ui`；Node 24+、Next 16.3.1、React 19、React Query 5。
+- Component/static verification 不需 backend 或 migrated DB；browser runner/spec 目前缺失，非必要證據。
+
+### Working notes
+
+- 角色首頁執行方案已存在於 `/home/user/projects/smartLearning/docs/智學互動平台/50_實作與測試/角色專屬首頁實作計畫-執行方案.md`；本 slice 依其 frontend-only scope 執行。
+- 既有學生與 public starter route 不重建；teacher view 不新增 API/query。
+
+### Results
+
+- **What changed**: 新增 `/admin` 靜態管理首頁與建立帳號 CTA；新增受保護 `/teacher` route/layout/page 與 session-only `TeacherHomeView`；login 與 forced password-change 的 teacher fallback 改為 `/teacher`；補齊 auth、admin、teacher route/view regression tests。
+- **Where**: `app/(admin)/admin/page.tsx`、`app/(teacher)/layout.tsx`、`app/(teacher)/teacher/page.tsx`、`features/teacher/TeacherHomeView.tsx`、兩個 auth feature/test，以及三個新首頁測試；未修改 backend、student flow 或 public root。
+- **How verified**: `npx next typegen`、targeted Vitest（6 suites / 36 tests）、`npm run typecheck`、`npm run lint:check`、`npm run build`（10 pages）、`git diff --check` 全部通過。
+- **Warnings**: lint 僅有既存 `features/admin/AccountCreateForm.tsx:68:16` React Compiler `watch()` memoization warning；另有非阻塞 Vitest/Vite config loader warning，均非本 slice 引入。
+- **Lessons recorded**: `tasks/lessons.md` 補記 Vitest hoisted mock、全域替換 mock state，以及 test lifecycle import 的 tripwires。

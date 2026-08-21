@@ -23,7 +23,7 @@ import { useLogin } from "@/lib/api/auth";
  *    `next` is intentionally ignored until the password is changed).
  *  - otherwise honor a same-origin relative `?next=` (open-redirect guarded),
  *    else default by role: `admin` → `/admin`, `student` → `/student`,
- *    `teacher` → `/` (teacher home not yet implemented).
+ *    `teacher` → `/teacher`.
  * All redirects use `router.replace` so the login page does not stay in
  * history (browser back should not return to the login page).
  *
@@ -48,7 +48,13 @@ type FormValues = z.infer<typeof schema>;
  */
 function resolveNext(next: string | null, role: string): string {
   const fallback =
-    role === "admin" ? "/admin" : role === "student" ? "/student" : "/";
+    role === "admin"
+      ? "/admin"
+      : role === "student"
+        ? "/student"
+        : role === "teacher"
+          ? "/teacher"
+          : "/";
   if (!next) return fallback;
   // Must start with a single `/` and not `//` (which the browser treats as a
   // scheme-relative URL to a foreign origin).

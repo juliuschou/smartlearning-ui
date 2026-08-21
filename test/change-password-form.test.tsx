@@ -220,6 +220,25 @@ describe("ChangePasswordForm — mutation and success", () => {
       screen.getByText("密碼已成功變更。即將為你導向…"),
     ).toBeInTheDocument();
   });
+
+  it("redirects a forced-change teacher after the returned session clears the flag", async () => {
+    const user = userEvent.setup();
+    const returnedSession = makeSession({
+      role: "teacher",
+      mustChangePassword: false,
+      sessionId: "rotated",
+    });
+    (apiRequest as unknown as Mock).mockResolvedValueOnce(returnedSession);
+    renderForm(makeSession({ role: "teacher", mustChangePassword: true }));
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole("button", { name: "變更密碼" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/teacher"));
+    expect(
+      screen.getByText("密碼已成功變更。即將為你導向…"),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("ChangePasswordForm — stable error codes", () => {

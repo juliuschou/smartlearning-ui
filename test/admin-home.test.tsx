@@ -20,6 +20,10 @@ describe("AdminHomePage", () => {
       screen.getByRole("heading", { level: 1, name: "管理員首頁" }),
     ).toBeInTheDocument();
     expect(screen.getByText("管理平台帳號與使用者權限。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "管理帳號" })).toHaveAttribute(
+      "href",
+      "/admin/accounts",
+    );
     expect(screen.getByRole("link", { name: "建立帳號" })).toHaveAttribute(
       "href",
       "/admin/accounts/new",

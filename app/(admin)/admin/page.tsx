@@ -13,10 +13,16 @@ export default function AdminHomePage() {
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           管理平台帳號與使用者權限。
         </p>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href="/admin/accounts"
+            className="inline-flex rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:ring-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          >
+            管理帳號
+          </Link>
           <Link
             href="/admin/accounts/new"
-            className="inline-flex rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="inline-flex rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:ring-offset-2 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
             建立帳號
           </Link>

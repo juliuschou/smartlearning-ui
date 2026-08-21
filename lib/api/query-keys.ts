@@ -8,6 +8,8 @@ export const queryKeys = {
   session: ["session"] as const,
   accounts: {
     all: ["accounts"] as const,
+    list: (page: number, pageSize: number) =>
+      ["accounts", "list", page, pageSize] as const,
     detail: (id: string) => ["accounts", id] as const,
   },
   myCourses: {

@@ -132,3 +132,45 @@
 - **How verified**: `npx next typegen`、targeted Vitest（6 suites / 36 tests）、`npm run typecheck`、`npm run lint:check`、`npm run build`（10 pages）、`git diff --check` 全部通過。
 - **Warnings**: lint 僅有既存 `features/admin/AccountCreateForm.tsx:68:16` React Compiler `watch()` memoization warning；另有非阻塞 Vitest/Vite config loader warning，均非本 slice 引入。
 - **Lessons recorded**: `tasks/lessons.md` 補記 Vitest hoisted mock、全域替換 mock state，以及 test lifecycle import 的 tripwires。
+
+## 2026-08-21 — US-F16 開課授權旗標（前端／靜態完成；真實驗收 Blocked）
+
+### Goal and acceptance criteria
+
+- [x] 依執行方案完成正式契約輸入與 F8 最小帳號列表／詳情承載頁；未猜測 API、角色、query key 或文案。
+- [x] 以 server 狀態驅動可存取的 `canCreateCourse` switch，成功後以 response seed + query invalidation/refetch，失敗不保留 local-only 成功狀態。
+- [x] 維持 permission toggle 與 account disable/restore、CLI credential revoke 的邊界。
+- [x] 補齊目標元件/API 測試與靜態 gate；真實 backend/DB 無法執行的項目明確標記 Blocked。
+
+### Checkpoints
+
+- [x] A — 契約、帳號 route/data/query key 與 backend endpoint 已實作；`smartlearning_test` migration status 與 account-admin DB-backed e2e 已通過。
+- [x] B — 實作 API 型別、GET list/detail hooks、PATCH mutation、accessible switch、admin CTA/routes 與 invalidation。
+- [x] C — targeted/full Vitest、typegen、typecheck、lint、build、diff check 與 browser spec discovery 已通過；真實 fixture flow 仍 Blocked。
+- [x] D — 已記錄風險、回滾與驗收狀態；DB/browser 未完成項明確標為 Blocked，不以 mock/placeholder 降級。
+
+### Risk & rollback
+
+- Risk: high（管理員 authorization boundary、跨 backend/frontend、真實資料保留與 credential side effects）。
+- Rollback: 移除 F16 新增的 backend PATCH/DTO/service/tests/docs，再移除 UI switch、mutation、API 型別/hooks/routes/tests；保留既有帳號建立、disable/restore 與 credential 流程，不做資料回滾。
+
+### Dependencies & environment
+
+- Node 24+、Next 16.3.1、React 19、React Query 5；前端預定 `localhost:3001`。
+- Backend `localhost:3000` liveness 與 `smartlearning_test` migration/e2e 已可用；真實 browser 仍需 UI `localhost:3001`、明確 CORS、五個 `F16_*` fixture 變數與隔離測試帳號。
+
+### Working notes
+
+- 來源：`/home/user/projects/smartLearning/docs/智學互動平台/50_實作與測試/US-F16 前端實作計畫-執行方案.md`。
+- 正式 endpoint：`PATCH /api/v1/admin/accounts/:id/permissions`，body 僅 `{ canCreateCourse: boolean }`，HTTP 200 + `AccountDto`；Session + CSRF + Admin。
+- backend permission mutation 使用 row lock、student true 403、同值 no-op，且不撤 session/CLI/token、不修改既有 domain rows。
+- Next.js 16 dynamic page 使用 async `params: Promise<{ accountId: string }>`；Playwright runner 使用既有 `playwright` package 的 `playwright/test`，未新增依賴。
+
+### Results
+
+- **What changed (backend)**: 新增 `UpdateAccountPermissionsDto`、`PATCH /admin/accounts/:id/permissions`、`AccountService.updateCourseCreationPermission()`（row lock/student invariant/no-op/單欄位更新）、course-create owner-lock recheck to close the revoke/create TOCTOU, OpenAPI assertion、account-admin F16 e2e cases，以及同步 `docs/frontend-api-reference.md`（含既有 GET list/detail 與 PATCH 契約）。
+- **What changed (frontend)**: 新增 `useAccounts`/`useAccount`/`useUpdateAccountPermissions`、request type/query key/error mapping、`AccountsListView`、`AccountDetailView` accessible switch、`/admin/accounts` 與 `/admin/accounts/[accountId]` routes、admin management CTA、component tests，以及 real-backend Playwright spec/runner wiring。
+- **Browser test hardening**: the fixture flow now accepts either initial permission value, checks focus/ARIA state, asserts the blocked request leaves the course list unchanged, archives its created course, restores the original permission, and logs out the teacher/admin sessions in `finally` cleanup.
+- **Frontend verification**: full `npm test` passed (10 files / 57 tests)；after browser-spec hardening, targeted `npm test -- test/account-detail-view.test.tsx test/accounts-list-view.test.tsx` passed (2 files / 9 tests), `npm run typecheck`、`npm run lint:check`、`npm run build`、`git diff --check` all passed, and `node test/browser/run.mjs --list` discovered 1 Chromium test without executing it. Lint retains one pre-existing React Hook Form warning at `features/admin/AccountCreateForm.tsx:68`；Vitest retains the existing Vite config loader warning.
+- **Backend verification**: `npm run typecheck`、`npm run lint:check`、`npm run format:check`、`npm run build`、`npm test -- --runInBand`（21 suites / 121 tests）passed; OpenAPI e2e passed (3 tests); `NODE_ENV=test npm run prisma:migrate:status` passed（12 migrations，schema up to date）；targeted `NODE_ENV=test npm run test:e2e -- --runInBand test/account-admin.e2e-spec.ts` passed（1 suite / 10 tests）。
+- **Not yet verified**: real Playwright fixture flow. `node test/browser/run.mjs --list` discovers 1 Chromium test, but all five required `F16_*` fixture variables are unset and UI port `3001` is not listening at the check; the browser flow remains explicitly **Blocked**, not claimed as completed.

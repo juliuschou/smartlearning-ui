@@ -62,6 +62,11 @@ export interface CreateAccountPayload {
   tempPassword: string;
 }
 
+/** `PATCH /admin/accounts/:id/permissions` request body (US-F16). */
+export interface UpdateAccountPermissionsPayload {
+  canCreateCourse: boolean;
+}
+
 /** `POST /auth/change-password` request body (US-F7). */
 export interface ChangePasswordPayload {
   currentPassword: string;

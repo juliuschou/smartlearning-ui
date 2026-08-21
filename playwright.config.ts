@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig } from 'playwright/test';
 
 /**
  * Playwright E2E config — browser tests against the real backend (3000) +

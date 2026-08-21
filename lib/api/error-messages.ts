@@ -18,7 +18,8 @@ const MESSAGES: Record<string, string> = {
   AUTH_STEP_UP_REQUIRED: '此操作需要再次輸入密碼以進階驗證。',
   AUTH_PASSWORD_CHANGE_REQUIRED: '請先變更密碼後再繼續。',
   FORBIDDEN: '你沒有權限執行此操作。',
-  // Account creation
+  // Account management
+  NOT_FOUND: '找不到指定的帳號。',
   CONFLICT: '此帳號名稱已被使用，請換一個。',
   VALIDATION_FAILED: '輸入內容不符合要求，請檢查欄位後再試一次。',
   // Rate limit (US-F7 / R-F7-7)

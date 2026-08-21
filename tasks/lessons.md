@@ -49,3 +49,24 @@
 - **偵測訊號**：targeted tests 全部通過後，`npm run typecheck` 仍在 test file 報未定義符號。
 - **預防規則**：測試檔一律從 `vitest` 顯式 import 使用到的 lifecycle/assertion APIs；不要把 runtime globals 當成 TypeScript declarations。
 - **Tripwire**：新增或修改 test imports 後，立即跑 `npm run typecheck`，不要只依賴 Vitest pass。
+
+## Nested callback loses TypeScript narrowing
+
+- **失敗模式**：`AccountDetailView` 在 render guard 後把 `account` 捕捉進 nested mutation callback；TypeScript 重新檢查 closure 時仍視為可能為 `undefined`。
+- **偵測訊號**：targeted Vitest 通過，但 `npm run typecheck` 報 `TS18048: 'account' is possibly 'undefined'`，指向 callback 內的 `account.id`。
+- **預防規則**：在 closure 建立前把已確認存在的欄位存入 local constant（例如 `const accountIdForMutation = account.id`），callback 只使用該值。
+- **Tripwire**：任何 component 以 query data guard 後定義 event/mutation callback，先跑 typecheck，不只跑 component test。
+
+## Playwright uses the existing request fixture context
+
+- **失敗模式**：browser spec 把 Playwright test fixture 的 `request`（已是 `APIRequestContext`）當成 `APIRequest`，呼叫不存在的 `newContext()`；runner 另以未 export 的 `playwright/cli.js` 做 CLI resolution。
+- **偵測訊號**：`npm run typecheck` 報 `Property 'newContext' does not exist on type 'APIRequestContext'`；runner `--list` 報 `ERR_PACKAGE_PATH_NOT_EXPORTED`。
+- **預防規則**：同一 spec 直接使用 fixture `request`，以 `storageState()` 讀 CSRF cookie；runner 由 `require.resolve('playwright')` 的 package 目錄組出 `cli.js`，不要 resolve 未 export subpath。
+- **Tripwire**：新增 Playwright spec 後先跑 `npm run typecheck` 與 `node test/browser/run.mjs --list`，再執行需要 backend fixture 的瀏覽器測試。
+
+## Confirm the requested successor before implementing adjacent stories
+
+- **失敗模式**：US-F16 完成摘要同時存在 canonical roadmap（下一個是 F0）與歷史 F8 resume note（列出未完成的 F8 UI Slice C/D）；在未先確認使用者意圖前，誤開始編寫 F8 step-up scaffolding，造成不必要的 working-tree scope contamination。
+- **偵測訊號**：使用者明確選擇「只處理 F16 驗收阻塞」後，F8 初始型別／元件必須全部移除；F16 static diff 本身原本已可獨立驗證。
+- **預防規則**：當 roadmap 與 resume note 指向不同 successor 時，先列出選項並問一個針對性問題；在答案前不得修改產品檔案。若已誤動，僅回復自己新增的檔案／片段，不 reset 使用者既有工作樹。
+- **Tripwire**：開始下一個 story 前比對 `SPEC F0-F17 前端實作計畫.md`、該 story resume note 與 `tasks/todo.md`；若順序或 scope 不一致，先做 scope confirmation，再執行 typecheck／e2e，不先寫 code。

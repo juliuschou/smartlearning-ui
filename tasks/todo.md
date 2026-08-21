@@ -174,3 +174,50 @@
 - **Frontend verification**: full `npm test` passed (10 files / 57 tests)；after browser-spec hardening, targeted `npm test -- test/account-detail-view.test.tsx test/accounts-list-view.test.tsx` passed (2 files / 9 tests), `npm run typecheck`、`npm run lint:check`、`npm run build`、`git diff --check` all passed, and `node test/browser/run.mjs --list` discovered 1 Chromium test without executing it. Lint retains one pre-existing React Hook Form warning at `features/admin/AccountCreateForm.tsx:68`；Vitest retains the existing Vite config loader warning.
 - **Backend verification**: `npm run typecheck`、`npm run lint:check`、`npm run format:check`、`npm run build`、`npm test -- --runInBand`（21 suites / 121 tests）passed; OpenAPI e2e passed (3 tests); `NODE_ENV=test npm run prisma:migrate:status` passed（12 migrations，schema up to date）；targeted `NODE_ENV=test npm run test:e2e -- --runInBand test/account-admin.e2e-spec.ts` passed（1 suite / 10 tests）。
 - **Not yet verified**: real Playwright fixture flow. `node test/browser/run.mjs --list` discovers 1 Chromium test, but all five required `F16_*` fixture variables are unset and UI port `3001` is not listening at the check; the browser flow remains explicitly **Blocked**, not claimed as completed.
+
+## 2026-08-22 — US-F0 老師建立課程前端
+
+### Goal and acceptance criteria
+
+- [ ] 真實 backend/F16 preflight passes before UI edits, or blockers are recorded without mock workarounds。
+- [ ] authorized teacher can create a Course with only `name` and optional `description`。
+- [ ] Course creation returns server-backed `draft` detail owned by the creator; no co-teaching/transfer/edit scope。
+- [ ] denied/stale permission shows stable 403 and creates no Course。
+- [ ] CSRF/Origin, accessibility, keyboard, route boundaries, and error states are covered。
+- [ ] F1/F9 downstream work is not faked; route status is explicitly completed/blocked/not-applicable。
+
+### Checklist
+
+- [ ] A — backend health, migrations, OpenAPI, F16 permission and CORS/CSRF preflight
+- [ ] B — Course types, query keys, create/detail hooks
+- [ ] C — create form, `/courses/new`, `/courses/[courseId]`, boundaries and teacher CTA
+- [ ] D — component/route/browser regression coverage
+- [ ] E — targeted tests, typegen, typecheck, lint, build, diff check, browser discovery
+- [ ] F — record Results, acceptance matrix, blocked evidence, risk/rollback notes
+
+### Risk & Rollback
+
+- Risk: medium/high — authenticated mutation, CSRF/Origin, authorization UX and cross-route navigation; no schema migration.
+- Rollback: remove/revert only F0 API/types/query keys, feature/routes, CTA, and tests; preserve existing auth/F16/student/teacher work and never reset the backend repository.
+- Monitoring signals: stable 403/CSRF errors, no Course ID after denial, no credentials/cookies/CSRF in logs, successful detail GET after 201.
+
+### Dependencies & Environment
+
+- Node 24+, Next 16.3.1, React 19, React Query 5, React Hook Form 7, Zod 4。
+- Backend `localhost:3000`, UI `localhost:3001`, explicit `CORS_ORIGIN` including `http://localhost:3001`; current UI env is `NEXT_PUBLIC_API_BASE`。
+- Real browser fixture may be blocked if F16 variables or migrated DB are unavailable; do not replace it with MSW/runtime mocks。
+
+### Working notes
+
+- Route group `(teacher)` maps `app/(teacher)/courses/new/page.tsx` to `/courses/new` and `[courseId]` to `/courses/:courseId`。
+- POST body must not include `ownerAccountId`, `status`, teacher assignments, or unknown fields。
+- `canCreateCourse` is a visibility hint only; backend transaction recheck is the authorization authority。
+- F9 route is not yet confirmed; use an explicit non-navigating deferred entry state rather than a dead link or placeholder flow。
+
+### Preflight Results (2026-08-22)
+
+- **Command/scope**: backend health probes, `/api/docs` + `/api/docs-json`, `NODE_ENV=test npm run prisma:migrate:status`, repository status/diff checks, and inspection of F16/course e2e evidence。
+- **Result**: backend contract **PASS**; real F16 browser acceptance **BLOCKED**。
+- **Evidence**: health/live and health/ready HTTP 200; OpenAPI HTTP 200 with `/api/v1/courses`, `POST` 201 and DTO fields; test database has 12 migrations and is up to date; existing backend e2e records success/403/no-row behavior。
+- **Blockers**: required `F16_*` browser fixtures are unset and UI port 3001 is not running, so the real Playwright gate cannot be claimed. Checked-in CORS defaults differ from the UI origin; effective runtime probes currently allow 3001 but launch configuration must be verified。
+- **Decision**: per the authoritative US-F0 stop rule (lines 119–130), do not edit F0 product files or claim implementation until the real F16 gate and exact runtime CORS setup are available. Tasks #2–#5 remain pending。

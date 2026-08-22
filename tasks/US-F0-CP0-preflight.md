@@ -71,3 +71,11 @@ The earlier 2026-08-22 rerun recorded above was blocked. The final rerun below s
 ### Final decision
 
 CP0 exit criteria are satisfied. Do not begin CP1–CP5 in this session unless the user explicitly requests continuation; the current task stops at the CP0 PASS boundary.
+
+## CP1 disposition — 2026-08-22
+
+- **Status:** `not-applicable`; the conditional backend contract slice was not required.
+- **Basis:** The CP0 final evidence already proves the Course/session contract and F16 authorization behavior. The existing backend Course controller/DTO/service provides the `POST /api/v1/courses` request/response contract, server-side `canCreateCourse` recheck, `draft` creation, and stable forbidden behavior; no additional CP1 contract gap was identified.
+- **Repository safety:** No UI or backend source/test files changed, no database or runtime mutation was performed, and no commit was created. The separate backend Phase B/F16 dirty tree remains an untouched baseline and was not staged, reset, or mixed into this CP.
+- **Verification:** CP1 targeted tests were not rerun because there is no CP1 implementation delta. The CP0 final evidence remains the authority for the real mutation/browser and data-invariance checks; this disposition is documentation-only.
+- **Handoff:** CP1 is `not-applicable`. CP2–CP5 remain pending. Stop here and request explicit confirmation before starting CP2 frontend transport work.

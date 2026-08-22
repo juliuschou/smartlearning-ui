@@ -247,3 +247,11 @@
 - **Real browser evidence**: `node test/browser/run.mjs test/browser/us-f16-account-permission.spec.ts` — Chromium **1 passed** (3.1s), covering server-backed permission state, keyboard/focus/ARIA, revoke→403/no new Course, re-enable→201, archive, restore, and logout cleanup.
 - **Safety**: no F0 product files, env files, backend source, existing domain rows, or volumes were reset/deleted; UI `git diff --check` passed.
 - **Decision**: stop at CP0 PASS. Do not begin CP1–CP5 without explicit user continuation.
+
+### CP1 disposition — 2026-08-22
+
+- **Status**: `not-applicable`; CP1 的條件式 backend contract slice 不需執行。
+- **Evidence**: CP0 final rerun 已確認 Course/session contract、OpenAPI、exact CORS、CSRF/Origin、F16 real browser gate 與 revoke→403/no-new-Course 行為；現有 backend Course controller/DTO/service 亦已具備 request/response、授權重查與 `draft` 建立契約。
+- **Scope**: 沒有修改 UI/backend source 或測試，沒有 database/runtime mutation，也沒有 commit。`smartLearning-backend` 既有 Phase B/F16 dirty changes 僅作為基線，未混入本 CP。
+- **Verification**: 未重跑 CP1 targeted tests，因本 CP 沒有 implementation delta；本次只記錄 disposition，並以文件 diff/status gate 驗證範圍。
+- **Decision**: CP1 記錄為 `not-applicable`；CP2–CP5 維持 pending。開始 CP2 frontend transport 前，需再次取得明確使用者確認。

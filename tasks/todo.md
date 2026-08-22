@@ -458,3 +458,7 @@ CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, 
   - F9: **BLOCKED/deferred**; the spec asserts the existing non-navigating deferred state and adds no question flow.
 - **Scope review**: changed files are `test/browser/us-f0-course-flow.spec.ts`, `tasks/todo.md`, and the required `tasks/lessons.md` lesson for the earlier zsh preflight error. No product source, backend source, dependency/lockfile, env file, Playwright config, runner, database row, or runtime volume was changed.
 - **Decision**: CP5 implementation and static evidence are complete, but CP5 real-backend acceptance remains **BLOCKED**, not a real-E2E success. Rerun the gated browser command only with isolated F0 fixtures and explicit authorization for its authenticated Course/permission mutations.
+
+### Commit record
+
+- CP5 browser coverage and the related task records were committed as `128e9b5` (`test(browser): add US-F0 Course flow coverage`) on 2026-08-22.

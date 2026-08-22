@@ -255,3 +255,52 @@
 - **Scope**: 沒有修改 UI/backend source 或測試，沒有 database/runtime mutation，也沒有 commit。`smartLearning-backend` 既有 Phase B/F16 dirty changes 僅作為基線，未混入本 CP。
 - **Verification**: 未重跑 CP1 targeted tests，因本 CP 沒有 implementation delta；本次只記錄 disposition，並以文件 diff/status gate 驗證範圍。
 - **Decision**: CP1 記錄為 `not-applicable`；CP2–CP5 維持 pending。開始 CP2 frontend transport 前，需再次取得明確使用者確認。
+
+## 2026-08-22 — US-F0 CP2 前端傳輸切片（完成）
+
+### Goal and acceptance criteria
+
+- [x] 只新增 Course wire types、query keys、transport hooks 與 focused transport tests；不進入 CP3 表單／路由／CTA／detail page。
+- [x] `CourseStatus` 僅為 `draft | archived`；`CourseDto` 與 `CreateCoursePayload` 對齊已確認 backend contract。
+- [x] `useCreateCourse` 僅送 `name` 與 defined `description`，以 `mutate:true` 經既有 `apiRequest`，成功後才 seed detail cache，無 optimistic Course。
+- [x] `useCourse` 轉送 `signal`，空 ID disabled，`retry:false`，`staleTime:30_000`，錯誤保持 typed API error path。
+- [x] targeted test、typecheck、diff/scope gate 全部通過。
+
+### Checkpoints
+
+- [x] A — 重新核對現有 API/query-key pattern，建立 CP2 四個預期檔案。
+- [x] B — targeted transport test + typecheck；失敗時停留在 CP2 並診斷。
+- [x] C — 必要時 typegen，重跑 test/typecheck，執行 diff/scope gate。
+- [x] D — 驗證後記錄 Results；CP2 完成即停下並請使用者確認 CP3。
+
+### Risk & rollback
+
+- Risk: medium（authenticated Course mutation/cache wiring；無 schema/server 變更）。
+- Rollback: 僅移除 Course types、query keys/hooks 與 focused test；不 reset working tree、不刪 runtime data。
+
+### Dependencies & Environment
+
+- Node 24+、Next 16.3.1、React 19、React Query 5、既有 `apiRequest` client。
+- Backend Course create/detail contract 已由 CP0/CP1 證據確認；CP2 驗證只需 UI static/unit tests，不以 mock 取代真實 backend acceptance。
+
+### Working notes
+
+- `MyCourseDto` 是 student enrollment projection，不可當作 teacher-owned `CourseDto`。
+- `description` 只在 runtime value 不為 `undefined` 時進入 body；trim/validation 留給 backend contract。
+- 不覆寫既有 authoritative `docs/智學互動平台/50_實作與測試/US-F0 CP2 前端傳輸切片實作計畫.md` 或 `US-F0 老師建立課程前端實作計畫.md`。
+
+### Results — CP2 PASS (2026-08-22)
+
+- **What changed**: 新增 `CourseStatus`、`CourseDto`、`CreateCoursePayload`；新增 `queryKeys.courses.all/detail(id)`；新增 `useCreateCourse`（精確重建 body、`mutate:true`、成功後 server-response detail cache seed、無 optimistic update）與 `useCourse`（signal、empty-ID gate、`retry:false`、`staleTime:30_000`）；新增 5 個 focused transport tests。
+- **Where**: `lib/api/types.ts`、`lib/api/query-keys.ts`、`lib/api/courses.ts`、`test/courses-api.test.tsx`；本 task log 只記錄驗證結果。沒有 route/page/form/component/CTA/backend/env/dependency 變更。
+- **Checkpoint status**: A/B/C/D 全部完成；`npx next typegen` 未執行，因 CP2 沒有 route/generated-type 變更且 `npm run typecheck` 已直接通過。Authoritative CP2 plan 保持不變。
+- **Verification**:
+  - `npm test -- test/courses-api.test.tsx` → PASS（1 file / 5 tests）。
+  - `npm run typecheck` → PASS（0 diagnostics）。
+  - `npm run lint:check` → PASS（0 errors；`features/admin/AccountCreateForm.tsx:68` 既有 React Compiler warning）。
+  - `npx prettier --check lib/api/types.ts lib/api/query-keys.ts lib/api/courses.ts test/courses-api.test.tsx` → PASS。
+  - `git diff --check` → PASS。
+  - `git status --short` / `git diff --name-only` scope review → 預期四個 CP2 product files 加本 task log，未見 route/page/backend/env/dependency 變更；untracked product files 已納入檢查。
+- **Public hooks**: `useCreateCourse()`、`useCourse(courseId: string)` 可供後續 CP3 UI 使用；沒有新增 runtime mock 或 API fallback。
+- **Unresolved downstream blockers**: CP3 route/form 與 CP4/CP5 real backend/Playwright acceptance 尚未開始，依 checkpoint boundary 留待後續確認；CP2 本身無 blocker。
+- **Decision**: CP2 到此停止。開始 CP3 前需取得使用者明確確認，不因本次測試通過而自動跨 checkpoint。

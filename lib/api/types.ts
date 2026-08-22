@@ -117,6 +117,29 @@ export interface Page<T> {
   };
 }
 
+/** Course lifecycle values returned by the Course API. */
+export type CourseStatus = "draft" | "archived";
+
+/**
+ * `CourseDto` from the teacher/admin Course endpoints (envelope-unwrapped).
+ * Timestamps are ISO-8601 strings from PostgreSQL `timestamptz` values.
+ */
+export interface CourseDto {
+  id: string;
+  name: string;
+  description: string | null;
+  status: CourseStatus;
+  ownerAccountId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `POST /courses` request body; ownership and status are server-controlled. */
+export interface CreateCoursePayload {
+  name: string;
+  description?: string;
+}
+
 /**
  * `MyCourseDto` from `GET /me/courses` (envelope-unwrapped, inside `Page<T>`).
  * Guard: Session + StudentGuard. A student's active course roster projection.

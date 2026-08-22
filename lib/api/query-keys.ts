@@ -12,6 +12,10 @@ export const queryKeys = {
       ["accounts", "list", page, pageSize] as const,
     detail: (id: string) => ["accounts", id] as const,
   },
+  courses: {
+    all: ["courses"] as const,
+    detail: (id: string) => ["courses", id] as const,
+  },
   myCourses: {
     all: ["my-courses"] as const,
   },

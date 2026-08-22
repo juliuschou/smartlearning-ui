@@ -70,3 +70,17 @@
 - **偵測訊號**：使用者明確選擇「只處理 F16 驗收阻塞」後，F8 初始型別／元件必須全部移除；F16 static diff 本身原本已可獨立驗證。
 - **預防規則**：當 roadmap 與 resume note 指向不同 successor 時，先列出選項並問一個針對性問題；在答案前不得修改產品檔案。若已誤動，僅回復自己新增的檔案／片段，不 reset 使用者既有工作樹。
 - **Tripwire**：開始下一個 story 前比對 `SPEC F0-F17 前端實作計畫.md`、該 story resume note 與 `tasks/todo.md`；若順序或 scope 不一致，先做 scope confirmation，再執行 typecheck／e2e，不先寫 code。
+
+## Zsh indirect environment lookup differs from Bash
+
+- **失敗模式**：在 zsh shell 使用 Bash 的 `${!name-}` 間接環境變數展開，並把 `status` 當作暫存變數；命令分別因 `bad substitution` 與 zsh `read-only variable` 失敗。
+- **偵測訊號**：Bash tool 回傳 `eval: bad substitution` 或 `eval: read-only variable: status`，而非檢查結果。
+- **預防規則**：本專案 shell 是 zsh；動態讀取環境變數使用 `${(P)name}`，HTTP status 暫存使用非保留名稱（例如 `http_code`）。
+- **Tripwire**：執行含 shell 間接展開或 `status` 變數的 preflight 前，先以 `zsh -n`/小型無秘密命令驗證語法；不要把 Bash-only expansion 直接貼進 Bash tool。
+
+## Real-backend browser cleanup must fail closed
+
+- **失敗模式**：真實 backend Playwright spec 以 API/UI 預設值啟動，或在未驗證 Course name、owner、status 與 baseline ID 前把 response ID 放入 cleanup set；response 遺失時又沒有 reconciliation，可能誤觸碰既有資料或遺留本次建立的 Course。
+- **偵測訊號**：code review 發現 fixture gate 未涵蓋全部環境變數、cleanup set 在 projection assertion 前更新，或 archive loop 在第一個錯誤即停止；任何 POST 201/timeout/body parse failure 都應能對應到唯一 run name 的 recovery path。
+- **預防規則**：mutating browser test 必須要求全部 fixture/runtime target 變數且無 localhost defaults；只在 exact unique name + owner + draft + baseline absence 通過後追蹤 UUID；不確定的 create 要用 owner-scoped list + detail 且唯一名稱 reconciliation，無法證明時標記 cleanup blocked；每個 archive 嘗試獨立執行並 aggregate failures。
+- **Tripwire**：對任何 authenticated browser spec 檢查 `requiredFixtureNames` 是否覆蓋所有 target/session/name 設定、`createdIds.add` 是否位於 identity assertion 之後，並針對 response timeout/malformed 及多個 cleanup ID 寫 recovery/continue-path review。

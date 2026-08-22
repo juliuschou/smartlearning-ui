@@ -406,3 +406,55 @@
 ### CP4 decision
 
 CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, or F9 without a new explicit user request and the required backend/browser acceptance conditions.
+
+## 2026-08-22 — US-F0 CP5 real-backend Playwright spec
+
+### Goal and acceptance criteria
+
+- [x] Add only the authoritative `test/browser/us-f0-course-flow.spec.ts` and this CP5 handoff; preserve product, backend, dependency, env, runner, and Playwright config scope.
+- [x] Implement coverage for the authorized teacher Course create/detail flow through real UI at 390×844 with keyboard navigation, exact Origin/CSRF/request-body assertions, server-ID redirect, detail reload, and desktop overflow smoke coverage.
+- [x] Implement coverage for missing-CSRF/disallowed-Origin no-row invariants and stale teacher-session reauthorization after admin permission revoke.
+- [x] Implement scoped cleanup that archives only this run's successful Course UUIDs, restores the original permission, logs out both contexts, and surfaces cleanup failures.
+- [x] Because runtime/fixture prerequisites are absent, record real-browser acceptance as `blocked`, never as skipped success or a mock substitute.
+
+### Checklist
+
+- [x] A — inspect CP5 contract, selectors, request/session conventions, and runtime gate.
+- [x] B — implement context-bound spec and local helpers.
+- [x] C — run targeted/full static verification and browser discovery.
+- [x] D — preserve blocked evidence for the gated real browser flow; do not run a live mutating command without isolated fixtures and explicit authorization.
+- [x] E — review diff scope and append sanitized Results/acceptance matrix.
+
+### Risk & rollback
+
+- Risk: medium/high — authenticated Course creation/archive and admin permission mutation affect isolated fixture state.
+- Rollback: remove only the CP5 spec and this CP5 task-log section; do not reset unrelated UI/backend changes or delete runtime data.
+- Safety: use `--workers=1`, exact returned UUID tracking, no credentials/cookies/CSRF/raw messages in output, and no delete/truncate/Compose teardown.
+
+### Dependencies & Environment
+
+- Node 24+, Next 16.3.1, Playwright 1.62.1; backend 3000, UI 3001, migrated isolated DB, exact runtime `CORS_ORIGIN=http://localhost:3001`, source/runtime parity, and all `F0_*` fixture variables.
+
+### Working notes
+
+- CP5 spec uses two independent `browser.newContext()` instances and each context's `request` API; the standalone Playwright `request` fixture is not used.
+- `canCreateCourse` is only a UI visibility hint; the Course create transaction is the authorization authority.
+- F9 remains explicitly deferred/non-navigating.
+- The browser gate was not substituted with skipped assertions, mocks, placeholders, backend changes, or runtime workarounds.
+
+### Results — static implementation PASS; real browser acceptance BLOCKED (2026-08-22)
+
+- **What changed**: added `test/browser/us-f0-course-flow.spec.ts` only for the CP5 real-backend flow. The spec reads only the allowed `F0_*` variables, uses independent admin/teacher contexts, context-bound request APIs, server-returned Course IDs, exact mutation headers/body checks, keyboard/focus/ARIA assertions, no-row security invariants, stale-session reauthorization, and archive-only cleanup.
+- **Safety hardening after review**: the mutating test now fails closed unless all eight fixture/runtime variables are present and the API/UI targets have valid expected URL shapes; Course IDs enter cleanup only after exact name/owner/draft plus baseline-difference validation; uncertain POSTs use unique-name owner-scoped reconciliation with detail verification; archive attempts continue independently and aggregate failures.
+- **Static verification**: `npx prettier --write test/browser/us-f0-course-flow.spec.ts` → PASS; `npx next typegen` → PASS; targeted Course tests (3 files / 21 tests) → PASS; `npm run typecheck` → PASS (0 diagnostics); `npm run lint:check` → PASS (0 errors, one pre-existing React Hook Form `watch()` warning at `features/admin/AccountCreateForm.tsx:68`); `npm run build` → PASS; `git diff --check` → PASS; full `npm test` → PASS (15 files / 87 tests); `node test/browser/run.mjs --list` → PASS (2 Chromium tests discovered).
+- **Runtime probes**: backend health/live, health/ready, and `/api/docs-json` returned HTTP 200 during preflight; these probes did not perform authenticated mutations.
+- **Real browser status**: **BLOCKED**. All required F0 fixture variables were absent at the gate, and the live mutating browser command was not executed after the execution guard denied the delegated action. No Course was created or archived, no permission was changed, no session was logged out by CP5, and no cleanup path was exercised.
+- **Acceptance matrix**:
+  - CP5 spec scope and context-bound API usage: **PASS** (static inspection/typecheck).
+  - Teacher create/detail, server-ID redirect, exact request contract, keyboard/accessibility, and desktop overflow: **BLOCKED** (requires real fixtures and live browser execution).
+  - Missing-CSRF/disallowed-Origin no-row invariants: **BLOCKED** (requires authenticated live teacher context).
+  - Admin UI revoke and stale teacher-session `403 FORBIDDEN`: **BLOCKED** (requires authenticated live admin/teacher fixtures).
+  - Archive-only cleanup, permission restoration, logout, and cleanup-failure propagation: **NOT EXERCISED** (correctly not claimed while the gated test was blocked).
+  - F9: **BLOCKED/deferred**; the spec asserts the existing non-navigating deferred state and adds no question flow.
+- **Scope review**: changed files are `test/browser/us-f0-course-flow.spec.ts`, `tasks/todo.md`, and the required `tasks/lessons.md` lesson for the earlier zsh preflight error. No product source, backend source, dependency/lockfile, env file, Playwright config, runner, database row, or runtime volume was changed.
+- **Decision**: CP5 implementation and static evidence are complete, but CP5 real-backend acceptance remains **BLOCKED**, not a real-E2E success. Rerun the gated browser command only with isolated F0 fixtures and explicit authorization for its authenticated Course/permission mutations.

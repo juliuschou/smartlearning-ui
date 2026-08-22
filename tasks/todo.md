@@ -304,3 +304,38 @@
 - **Public hooks**: `useCreateCourse()`、`useCourse(courseId: string)` 可供後續 CP3 UI 使用；沒有新增 runtime mock 或 API fallback。
 - **Unresolved downstream blockers**: CP3 route/form 與 CP4/CP5 real backend/Playwright acceptance 尚未開始，依 checkpoint boundary 留待後續確認；CP2 本身無 blocker。
 - **Decision**: CP2 到此停止。開始 CP3 前需取得使用者明確確認，不因本次測試通過而自動跨 checkpoint。
+
+## 2026-08-22 — US-F0 CP3-B 建立課程 route shell（完成）
+
+### CP3-B Results — PASS
+
+- **Status**: `PASS`；依 checkpoint 邊界完成 route shell 與 boundaries，並在 CP3 停止。使用者已確認先停在 CP3，未自動進入 CP4。
+- **What changed**: 將既有 `CourseCreateForm` 接到受 `(teacher)` route group 保護的 `/courses/new`；新增 Server Component page shell、loading boundary、Client error boundary、not-found boundary，以及 route regression test。
+- **Where**: `app/(teacher)/courses/new/page.tsx`、`loading.tsx`、`error.tsx`、`not-found.tsx`、`test/course-create-route.test.tsx`。CP3-B 已建立 commit `6d0b2cb`（`feat(courses): add course creation route shell`）。
+- **Invariants**: auth、teacher role、`mustChangePassword` 仍由 `app/(teacher)/layout.tsx` 負責；`canCreateCourse` 仍僅控制 teacher-home CTA 可見性；Course owner/status、request payload、CSRF/Origin、server authorization 仍由既有 form/transport/backend 負責。未修改 CP2 transport、CP3-A form/CTA、backend、env、dependencies 或 E2E fixture。
+- **Scope guard**: 沒有新增 Course detail route、建立成功後 redirect、F1/F9 流程或任何 CP4/CP5 product work。
+
+### Verification
+
+- `npm test -- test/course-create-form.test.tsx test/teacher-home-view.test.tsx test/course-create-route.test.tsx` → PASS（3 files / 18 tests）。
+- `npx next typegen` → PASS（Types generated successfully）。
+- `npm run typecheck` → PASS（0 diagnostics）。
+- `npm run lint:check` → PASS（0 errors）；保留既有 `features/admin/AccountCreateForm.tsx:68` React Compiler warning。
+- `npm run build` → PASS（production build；12/12 pages static generation）。
+- `git diff --check` → PASS；commit 後 working tree clean。
+- 測試輸出另有非阻塞 Vite config loader ESM warning，未影響結果，未擴大本 checkpoint scope。
+
+### Deferred / not completed
+
+- CP4：Course detail route 與建立成功後導向。
+- CP5：真實 backend／Playwright downstream acceptance，以及 F1/F9 行為。
+- 未以 mock、placeholder 或 runtime fallback 取代上述尚未完成項。
+
+### Risk & rollback
+
+- **Risk**: medium；route 位於 authenticated mutation 入口，error boundary 必須避免 raw server detail 洩漏，且不可重複實作 client-side authorization。
+- **Rollback**: 使用 `git revert 6d0b2cb` 移除本 checkpoint 的四個 route 檔與 route test；保留 CP2、CP3-A，不 reset working tree、不刪除 runtime/domain data、不觸碰 sibling backend。
+
+### Checkpoint decision
+
+- CP3-B 已完成並通過 static verification，停在 **CP3 PASS**。未收到新的明確確認前，不開始 CP4 或修改後續 F0 product scope。

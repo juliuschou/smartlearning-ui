@@ -4,6 +4,16 @@ import { TeacherHomeView } from "@/features/teacher/TeacherHomeView";
 import TeacherHomePage from "@/app/(teacher)/teacher/page";
 import type { SessionDto } from "@/lib/api/types";
 
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+  }: {
+    children: React.ReactNode;
+    href: string;
+  }) => <a href={href}>{children}</a>,
+}));
+
 const sessionState: { session: SessionDto | null } = {
   session: null,
 };
@@ -53,6 +63,10 @@ describe("TeacherHomeView", () => {
     expect(screen.getByText("teacher.alice")).toBeInTheDocument();
     expect(screen.getByText("teacher")).toBeInTheDocument();
     expect(screen.getByText("可以開課")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "建立課程" })).toHaveAttribute(
+      "href",
+      "/courses/new",
+    );
     expect(apiRequest).not.toHaveBeenCalled();
   });
 
@@ -62,6 +76,12 @@ describe("TeacherHomeView", () => {
     render(<TeacherHomeView />);
 
     expect(screen.getByText("目前無法開課")).toBeInTheDocument();
+    expect(
+      screen.getByText("目前無法開課：目前帳號沒有開課權限。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "建立課程" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders no session content when there is no session", () => {

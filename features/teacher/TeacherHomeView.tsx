@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSession } from "@/lib/auth/session";
 
 /**
@@ -50,6 +51,18 @@ export function TeacherHomeView() {
           </dd>
         </div>
       </dl>
+      {session.canCreateCourse ? (
+        <Link
+          href="/courses/new"
+          className="mt-5 inline-flex rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:ring-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        >
+          建立課程
+        </Link>
+      ) : (
+        <p className="mt-5 text-sm text-zinc-700 dark:text-zinc-300">
+          目前無法開課：目前帳號沒有開課權限。
+        </p>
+      )}
     </section>
   );
 }

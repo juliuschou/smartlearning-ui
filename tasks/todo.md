@@ -221,3 +221,29 @@
 - **Evidence**: health/live and health/ready HTTP 200; OpenAPI HTTP 200 with `/api/v1/courses`, `POST` 201 and DTO fields; test database has 12 migrations and is up to date; existing backend e2e records success/403/no-row behavior。
 - **Blockers**: required `F16_*` browser fixtures are unset and UI port 3001 is not running, so the real Playwright gate cannot be claimed. Checked-in CORS defaults differ from the UI origin; effective runtime probes currently allow 3001 but launch configuration must be verified。
 - **Decision**: per the authoritative US-F0 stop rule (lines 119–130), do not edit F0 product files or claim implementation until the real F16 gate and exact runtime CORS setup are available. Tasks #2–#5 remain pending。
+
+### CP0 execution attempt — 2026-08-22 (initial)
+
+- **Status**: `blocked`; no F0 product files were modified.
+- **Evidence**: `curl` health/live, health/ready, and `/api/docs-json` timed out (`HTTP 000`); ports 3000 and 3001 were not listening; `NODE_ENV=test npm run prisma:migrate:status` failed with PostgreSQL `P1001` at `localhost:5432`.
+- **Handoff**: `tasks/US-F0-CP0-preflight.md` contains the minimal command/result table, contract revalidation list, and required next action without secrets.
+- **Decision**: restore the backend, migrated test DB, UI port 3001, explicit `CORS_ORIGIN=http://localhost:3001`, and isolated F16 fixtures before rerunning CP0. Do not begin CP1–CP5 or use mock/runtime fixtures as a substitute.
+
+### CP0 rerun — 2026-08-22 (environment restored)
+
+- **Status**: `blocked`; environment recovery and the complete CP0 rerun finished without modifying F0 product files.
+- **PASS**: backend `/health/live`, `/health/ready`, `/api/docs`, `/api/docs-json`; UI `3001`; backend `3000`; PostgreSQL `5432`/`5433`; Compose database/migrate (`Exited 0`, no pending migrations); `NODE_ENV=test npm run prisma:migrate:status` (12 migrations, `smartlearning_test` up to date).
+- **PASS with limitations**: live Course create/detail and `SessionDto.canCreateCourse` contracts; safe CORS/CSRF behavior. Generated OpenAPI has known generic-list/format/nullability gaps.
+- **BLOCKED**: exact runtime CORS is `http://localhost:3000,http://localhost:3001` instead of the required single UI origin; all five isolated `F16_*` fixtures are absent; live OpenAPI lacks checked-out F16 `GET /admin/accounts/:id` and `PATCH /admin/accounts/:id/permissions` because the running image is stale relative to the dirty backend tree.
+- **Safety**: no mock or runtime fixture substitution, authenticated mutation, mutating browser flow, product-file edit, env-file edit, container removal, or volume deletion was used.
+- **Decision**: CP0 remains blocked. Rebuild/recreate the backend from the checked-out F16 source with exact `CORS_ORIGIN=http://localhost:3001`, provide isolated fixtures, rerun CP0, and wait for explicit user confirmation before CP1–CP5.
+
+### CP0 final rerun — 2026-08-22 (dirty F16 source + isolated fixture)
+
+- **Status**: `PASS`; CP0 exit criteria are satisfied. CP1–CP5 were not started.
+- **Backend/runtime**: rebuilt from the current uncommitted F16 backend source; isolated `f16isolated` Compose stack is running with `f16-isolated-backend` on `3000`, `f16-isolated-db` on `55433`, and a fresh named fixture volume. The prior `smartlearning-backend` container was stopped only (its container, original DB, and original volume were preserved).
+- **Preflight evidence**: health/live, health/ready, and docs JSON HTTP 200; migration exit `0`; `prisma migrate status` found 12 migrations with no pending migrations; OpenAPI 37 paths including F16 account detail and permission PATCH; exact runtime `CORS_ORIGIN=http://localhost:3001`; allowed CORS credentials and no ACAO for an unapproved origin.
+- **Fixture evidence**: a fresh admin was compiled-bootstrap provisioned, a unique teacher was created via the real admin API, and the forced password change completed. Target account ID: `01a028b5-c31f-7410-83a5-7032e8e81acd`. Passwords/cookies were kept only in-process and were not persisted or recorded.
+- **Real browser evidence**: `node test/browser/run.mjs test/browser/us-f16-account-permission.spec.ts` — Chromium **1 passed** (3.1s), covering server-backed permission state, keyboard/focus/ARIA, revoke→403/no new Course, re-enable→201, archive, restore, and logout cleanup.
+- **Safety**: no F0 product files, env files, backend source, existing domain rows, or volumes were reset/deleted; UI `git diff --check` passed.
+- **Decision**: stop at CP0 PASS. Do not begin CP1–CP5 without explicit user continuation.

@@ -339,3 +339,70 @@
 ### Checkpoint decision
 
 - CP3-B 已完成並通過 static verification，停在 **CP3 PASS**。未收到新的明確確認前，不開始 CP4 或修改後續 F0 product scope。
+
+## 2026-08-22 — US-F0 CP4 Course detail 前端實作（進行中）
+
+### Goal and acceptance criteria
+
+- [ ] 建立成功只使用 server response 的 Course ID，以 same-origin `router.replace('/courses/:id')` 導向真實 detail。
+- [ ] `/courses/[courseId]` 使用 Next 16 async `params: Promise<{ courseId: string }>`，並受既有 `(teacher)` layout 保護。
+- [ ] Detail 由 `useCourse(courseId)` 取得 server state，呈現 name、exact `draft|archived` status、ownerAccountId 與唯一老師語意。
+- [ ] loading、unexpected error、query 404 與 route not-found 不洩漏 Course ID/raw backend detail；F9 維持明確 blocked/deferred 且不可導航。
+- [ ] 補齊 create redirect、detail view、route/boundary focused regression tests 與 static gates；不修改 backend/transport/依賴。
+
+### Checklist
+
+- [ ] A — 重新確認 CP4 contract、既有 patterns 與 Next 16 route conventions
+- [ ] B — create success redirect 與 CourseDetailView
+- [ ] C — dynamic route、loading/error/not-found boundaries
+- [ ] D — focused form/detail/route regression coverage
+- [ ] E — targeted tests、typegen、typecheck、lint、build、diff/scope checks
+- [ ] F — 更新 Results、F9 blocked、CP5 residual blocker、rollback notes
+
+### Risk & Rollback
+
+- Risk: medium；主要風險是 server ID 導向錯誤、dynamic params 使用錯誤，以及 404/exception 洩漏 Course 存在性或 raw backend detail。
+- Rollback: 僅移除 CP4 redirect、detail feature、dynamic route/boundaries、focused tests 與本 task-log section；保留 CP2/CP3、auth/F16、backend 與 runtime/domain data，不 reset working tree。
+- Monitoring signals: create success 後 detail GET 成功；denied/404 不產生新 Course、沒有 raw ID/message 出現在 UI，F9 不出現 dead link。
+
+### Dependencies & Environment
+
+- Node 24+、Next 16.3.1、React 19、React Query 5、React Hook Form 7、Zod 4。
+- Backend Course create/detail contract 與 F16 gate 已由 CP0 final rerun/CP2/CP3 evidence 確認；本 CP 不改 backend。
+- CP5 real Playwright 仍需 isolated fixture、UI `3001`、backend `3000` 與 exact CORS；不可用 mock/runtime fixture 取代。
+
+### Working notes
+
+- `useCourse(courseId)` 已存在並使用 `GET /courses/:id`、`retry:false`、typed `ApiRequestError`。
+- Query 404 由 client view 顯示 generic no-enumeration；route `not-found.tsx` 只作 route-local boundary，不為此新增 server-side fetch/shortcut。
+- F9 題目入口尚未獲權威確認，CP4 只保留 non-navigating blocked state。
+
+### Results — CP4 PASS（2026-08-22）
+
+- **Status**: `PASS`；Course detail 前端 slice 完成，未修改 backend、transport contract、env 或 dependencies。
+- **What changed**: 建立成功後以 server response 的 `course.id` 呼叫 same-origin `router.replace('/courses/:id')`；新增受 `(teacher)` protected route group 保護的 `/courses/[courseId]`，以 Next 16 async `params` 傳入既有 `useCourse(courseId)`；新增 server-backed detail view 與 route-local loading/error/not-found boundaries。
+- **Detail behavior**: 顯示 server `name`、精確 `draft`/`archived` status、`ownerAccountId`，並明確說明 owner 是唯一老師；query 404 使用 generic no-enumeration UI，其他錯誤使用 stable-code `ErrorAlert`；未知資料狀態使用安全 fallback，不渲染 Course ID 或 raw backend message。
+- **F9 / CP5 boundary**: F9 題目功能維持 non-navigating blocked state，沒有 dead link、假頁面或 placeholder route。CP5 real backend/Playwright acceptance 未執行，仍需 isolated fixture、UI `3001`、backend `3000` 與 exact runtime CORS，未以 mock/runtime fixture 取代。
+- **Where**: `features/courses/CourseCreateForm.tsx`、`features/courses/CourseDetailView.tsx`、`app/(teacher)/courses/[courseId]/page.tsx`、`loading.tsx`、`error.tsx`、`not-found.tsx`、`test/course-create-form.test.tsx`、`test/course-detail-view.test.tsx`、`test/course-detail-route.test.tsx`；本 task log 同步記錄結果。未修改 backend 或既有 transport files。
+
+### Verification
+
+- [x] A — contract、既有 patterns 與 Next 16 route conventions 已重新確認。
+- [x] B — create success redirect 與 `CourseDetailView` 完成。
+- [x] C — dynamic route、loading/error/not-found boundaries 完成。
+- [x] D — focused regression coverage 完成：`npm test -- test/course-create-form.test.tsx test/course-detail-view.test.tsx test/course-detail-route.test.tsx` → PASS（3 files / 21 tests，0 failed，0 skipped）。
+- [x] E — `npx next typegen` → PASS；`npm run typecheck` → PASS（0 diagnostics）；`npm run lint:check` → PASS（0 errors，保留既有 `features/admin/AccountCreateForm.tsx:68` React Compiler `watch()` warning）；`npm run build` → PASS（Next 16.3.1/Turbopack，TypeScript、12/12 static pages）；`git diff --check` → PASS；status/name-only scope review 僅見 CP4 product/test files 與 task log。
+- [x] F — Results、F9 blocked、CP5 residual blocker、risk/rollback notes 已記錄。
+
+### Acceptance matrix
+
+- **Create redirect**: PASS — only the server-returned Course ID builds the same-origin detail URL; validation and mutation failure paths do not navigate.
+- **Protected route / params**: PASS — route remains under `(teacher)` and awaits `params: Promise<{ courseId: string }>`; auth and role gates remain in the existing layout.
+- **Server-backed projection**: PASS — detail reads through `useCourse(courseId)` and preserves the backend lifecycle value and owner ID.
+- **Privacy/error boundaries**: PASS — typed 404, unexpected errors, and route boundaries use curated generic output without Course IDs or raw backend details.
+- **F9**: BLOCKED — authoritative question route/API is not confirmed; only a non-interactive deferred state is shown.
+- **CP5**: BLOCKED / deferred — real backend Playwright acceptance was intentionally not claimed in CP4.
+
+### CP4 decision
+
+CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, or F9 without a new explicit user request and the required backend/browser acceptance conditions.

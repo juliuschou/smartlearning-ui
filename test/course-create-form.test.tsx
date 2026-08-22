@@ -5,6 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CourseCreateForm } from "@/features/courses/CourseCreateForm";
 import type { CourseDto } from "@/lib/api/types";
 
+const navigationMocks = vi.hoisted(() => ({
+  replace: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => navigationMocks,
+}));
+
 const mocks = vi.hoisted(() => {
   class MockApiRequestError extends Error {
     readonly code: string;
@@ -94,6 +102,7 @@ describe("CourseCreateForm — validation and accessibility", () => {
 
     expect(await screen.findByText("請輸入課程名稱")).toBeInTheDocument();
     expect(mocks.apiRequest).not.toHaveBeenCalled();
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
   });
 
   it("rejects a name longer than 200 characters without calling the API", async () => {
@@ -107,6 +116,7 @@ describe("CourseCreateForm — validation and accessibility", () => {
       await screen.findByText("課程名稱最長 200 字元"),
     ).toBeInTheDocument();
     expect(mocks.apiRequest).not.toHaveBeenCalled();
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
   });
 
   it("rejects a description longer than 2,000 characters without calling the API", async () => {
@@ -120,6 +130,7 @@ describe("CourseCreateForm — validation and accessibility", () => {
       await screen.findByText("課程說明最多 2,000 字元"),
     ).toBeInTheDocument();
     expect(mocks.apiRequest).not.toHaveBeenCalled();
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
   });
 
   it("uses native labelled controls and exposes the validation relationships", () => {
@@ -141,7 +152,7 @@ describe("CourseCreateForm — validation and accessibility", () => {
 });
 
 describe("CourseCreateForm — mutation and success", () => {
-  it("sends only the Course fields and shows the server response", async () => {
+  it("uses the server Course ID for same-origin detail navigation", async () => {
     const user = userEvent.setup();
     mocks.apiRequest.mockResolvedValueOnce(course);
     renderForm();
@@ -149,10 +160,12 @@ describe("CourseCreateForm — mutation and success", () => {
     await fillCourse(user, { description: "基礎微積分" });
     await user.click(screen.getByRole("button", { name: "建立課程" }));
 
-    const status = await screen.findByRole("status");
-    expect(status).toHaveTextContent("微積分一");
-    expect(status).toHaveTextContent("draft");
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(navigationMocks.replace).toHaveBeenCalledWith("/courses/course-1"),
+    );
+    expect(
+      screen.queryByText("已建立課程「微積分一」。狀態：draft"),
+    ).not.toBeInTheDocument();
     expect(mocks.apiRequest).toHaveBeenCalledTimes(1);
     expect(mocks.apiRequest).toHaveBeenCalledWith("/courses", {
       method: "POST",
@@ -168,7 +181,9 @@ describe("CourseCreateForm — mutation and success", () => {
 
     await fillCourse(user);
     await user.click(screen.getByRole("button", { name: "建立課程" }));
-    await screen.findByRole("status");
+    await waitFor(() =>
+      expect(navigationMocks.replace).toHaveBeenCalledWith("/courses/course-1"),
+    );
 
     expect(mocks.apiRequest).toHaveBeenCalledWith("/courses", {
       method: "POST",
@@ -196,7 +211,9 @@ describe("CourseCreateForm — mutation and success", () => {
     expect(mocks.apiRequest).toHaveBeenCalledTimes(1);
 
     resolveCreate(course);
-    await screen.findByRole("status");
+    await waitFor(() =>
+      expect(navigationMocks.replace).toHaveBeenCalledWith("/courses/course-1"),
+    );
   });
 });
 
@@ -225,6 +242,7 @@ describe("CourseCreateForm — stable errors", () => {
       screen.queryByText("internal authorization detail"),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
   });
 
   it("uses the generic message for an unknown typed error code", async () => {
@@ -268,7 +286,7 @@ describe("CourseCreateForm — stable errors", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("clears a previous success message before a failed retry", async () => {
+  it("does not navigate after a failed retry", async () => {
     const user = userEvent.setup();
     mocks.apiRequest.mockResolvedValueOnce(course).mockRejectedValueOnce(
       new ApiRequestError(
@@ -284,7 +302,9 @@ describe("CourseCreateForm — stable errors", () => {
 
     await fillCourse(user);
     await user.click(screen.getByRole("button", { name: "建立課程" }));
-    await screen.findByRole("status");
+    await waitFor(() =>
+      expect(navigationMocks.replace).toHaveBeenCalledWith("/courses/course-1"),
+    );
 
     await user.clear(screen.getByLabelText("課程名稱"));
     await user.type(screen.getByLabelText("課程名稱"), "第二門課");
@@ -293,6 +313,6 @@ describe("CourseCreateForm — stable errors", () => {
     expect(
       await screen.findByText("你沒有權限執行此操作。"),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(navigationMocks.replace).toHaveBeenCalledTimes(1);
   });
 });

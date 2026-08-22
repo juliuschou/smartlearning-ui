@@ -1,14 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { Field, inputClass } from "@/components/ui/Field";
 import { ApiRequestError } from "@/lib/api/client";
 import { useCreateCourse } from "@/lib/api/courses";
-import type { CourseDto, CreateCoursePayload } from "@/lib/api/types";
+import type { CreateCoursePayload } from "@/lib/api/types";
 
 const schema = z.object({
   name: z.string().min(1, "請輸入課程名稱").max(200, "課程名稱最長 200 字元"),
@@ -18,14 +18,14 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 /**
- * Course creation form — US-F0 CP3.
+ * Course creation form — US-F0 CP3/CP4.
  *
  * The server controls ownership and lifecycle status. This component only
  * collects the two public fields and delegates the mutation to the CP2 hook.
  */
 export function CourseCreateForm() {
+  const router = useRouter();
   const createCourse = useCreateCourse();
-  const [created, setCreated] = useState<CourseDto | null>(null);
 
   const {
     register,
@@ -39,27 +39,19 @@ export function CourseCreateForm() {
     },
   });
 
-  const onSubmit = handleSubmit(
-    async (values) => {
-      setCreated(null);
+  const onSubmit = handleSubmit(async (values) => {
+    const payload: CreateCoursePayload = { name: values.name };
+    if (values.description !== undefined && values.description !== "") {
+      payload.description = values.description;
+    }
 
-      const payload: CreateCoursePayload = { name: values.name };
-      if (values.description !== undefined && values.description !== "") {
-        payload.description = values.description;
-      }
-
-      try {
-        const course = await createCourse.mutateAsync(payload);
-        setCreated(course);
-      } catch {
-        // `createCourse.error` drives the ErrorAlert; no extra handling here.
-      }
-    },
-    () => {
-      // A new invalid submit must not leave an old success state visible.
-      setCreated(null);
-    },
-  );
+    try {
+      const course = await createCourse.mutateAsync(payload);
+      router.replace(`/courses/${course.id}`);
+    } catch {
+      // `createCourse.error` drives the ErrorAlert; no extra handling here.
+    }
+  });
 
   const apiError = createCourse.error
     ? createCourse.error instanceof ApiRequestError
@@ -82,16 +74,6 @@ export function CourseCreateForm() {
       >
         建立一門課程。課程擁有者與初始狀態由伺服器決定。
       </p>
-
-      {created ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200"
-        >
-          已建立課程「{created.name}」。狀態：{created.status}
-        </div>
-      ) : null}
 
       {apiError ? <ErrorAlert error={apiError} id="form-error" /> : null}
 

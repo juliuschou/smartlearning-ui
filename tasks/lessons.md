@@ -91,3 +91,10 @@
 - **偵測訊號**: 同一 PATCH 請求，HAR/network trace 的 `headers` 陣列含 `Origin: http://localhost:3001`，且 `await request.allHeaders()` 回 `origin: "http://localhost:3001"`；但 `request.headers()` 的 key set 裡沒有 `origin`。spec 在 `assertMutationHeaders` 拋 `... did not send the exact UI Origin`。
 - **預防規則**: 跨源 mutation 的 header 斷言改用 `await request.allHeaders()`（含 `Origin`）而非 `request.headers()`。`x-csrf-token` 在 `headers()` 也在，但 `Origin` 只在 `allHeaders()` 可見。修正後必須實際跑一次 real-backend run 驗證，不能只靠 static inspection。
 - **Tripwire**: 任何 browser spec 用 `request.headers().origin`（或 `headers()["origin"]`）斷言 Origin 前，先確認改用 `allHeaders()`；grep `assertMutationHeaders` / `.headers().origin`。
+
+## `getByRole("alert")` is ambiguous on a Next.js page — the route announcer also has role="alert"
+
+- **失敗模式**: real-backend browser spec 在斷言 Form 錯誤時用 `page.getByRole("alert")` 去對 `你沒有權限執行此操作。` 做 `toContainText`。Playwright strict mode 報 `resolved to 2 elements`：除了產品真正的 `ErrorAlert id="form-error"`，Next.js 的 route announcer（`__next-route-announcer__`）也帶 `role="alert"`（顯示「建立課程 | 智學互動平台」）。
+- **偵測訊號**: `expect(locator).toContainText` 拋 `Error: strict mode violation: getByRole('alert') resolved to 2 elements`，第二個是 `<div role="alert" id="__next-route-announcer__">…`。產品 UI 其實正常渲染（form-error 內容正確），是 locator 不夠唯一。
+- **預防規則**: 對「單一組件的錯誤提示」不要用泛型 `getByRole("alert")`；改用穩定且有意的定位器，例如 `page.locator("#form-error")`（`ErrorAlert` 傳入的 `id`），或 `getByRole("alert", { name: /你沒有權限/ })`。`ErrorAlert` 已支援 `id` prop，直接用 id 最穩。
+- **Tripwire**: 任何 browser spec 用 `getByRole("alert")`（或對不唯一 `role` 的 locator）斷言單一錯誤文字前，先確認該 `role` 在頁面上唯一；grep `getByRole("alert")` / `getByRole('alert')`。修正後必須實際跑一次 real-backend run 驗證，不能只靠 static inspection。

@@ -494,3 +494,47 @@ CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, 
 ### Sanitization / safety
 
 - No credentials, cookies, CSRF tokens, session values, or raw backend messages appear in this record or were committed. The transient env file `/tmp/us-f0-cp5-fixture.env` was **not** deleted (it was not part of an approved destructive step this session); delete it before any later run per the plan, or reuse per explicit approval.
+
+## 2026-08-25 — US-F0 CP5 live run close-out — real-browser acceptance PASS
+
+### Context
+
+- Executed the `2026-08-24` 收尾計畫 checkpoints in sequence with explicit user authorization (CP-A′ spec fix → static gate → CP-B baseline verify → CP-C live run → CP-D docs/commit). CP-A (Origin `allHeaders()` fix) was already committed in a prior session as part of the spec work; the outstanding work below is a second spec locator fix surfaced by the live run.
+- The isolated project `smartlearning-cp5-f0-20260824` was healthy (backend 3000, db 55436, UI 3001, `CORS_ORIGIN=http://localhost:3001`), fixtures sourced from `/tmp/us-f0-cp5-fixture.env`.
+
+### CP-B baseline verify — PASS
+
+- `cp5teacher`: role `teacher`, `can_create_course=f`, `status=active`, `must_change_password=f` — matches CP-C baseline.
+- `cp5admin`: role `admin`, `status=active`.
+- Isolated DB `course` count = **0** (no residual rows). Services healthy; fixture env had all 8 `F0_*` vars.
+
+### CP-A′ spec fix — second locator bug (spec, not product/backend)
+
+- The first live attempt (Origin fix verified) advanced to the revoked-permission step and failed at spec line 1013: `getByRole("alert")` **strict-mode violation** — it resolved to 2 elements because Next.js's route announcer (`__next-route-announcer__`) also carries `role="alert"`, alongside the real `ErrorAlert id="form-error"`.
+- **Root cause (confirmed, not a backend/UI defect)**: the product renders the curated `FORBIDDEN` message (`你沒有權限執行此操作。`, mapped in `lib/api/error-messages.ts:20`) via `ErrorAlert id="form-error"` (`CourseCreateForm.tsx:78`). The assertion locator was not unique.
+- **Fix**: `teacherPage.getByRole("alert")` → `teacherPage.locator("#form-error")` at spec line 1013.
+- **Static gate**: `npm run typecheck` PASS (0 diagnostics); `npm run lint:check` PASS (0 errors, pre-existing `AccountCreateForm.tsx` warning only); `npx prettier --check` PASS; `git diff --check` PASS; scope = only `test/browser/us-f0-course-flow.spec.ts`.
+
+### CP-C live run — PASS
+
+- Ran: `set -a; source /tmp/us-f0-cp5-fixture.env; set +a; node test/browser/run.mjs --workers=1 test/browser/us-f0-course-flow.spec.ts`.
+- Result: **1 passed** (Chromium, 2.6s) — `US-F0 real-backend Course flow › teacher creates and reloads a Course, then respects revoked permission`.
+- The full matrix now passes end-to-end: teacher create/detail, server-ID redirect, exact request contract (incl. the previously-failing Origin assertion via `allHeaders()`), missing-CSRF / disallowed-Origin no-row invariants, admin revoke → stale teacher `403 FORBIDDEN` curated `#form-error` UI, keyboard/a11y, desktop overflow.
+
+### CP-E record — acceptance matrix (final)
+
+- CP5 spec scope / context-bound API usage: **PASS**.
+- Teacher create/detail, server-ID redirect, exact request contract, keyboard/a11y, desktop overflow: **PASS** (live run).
+- Missing-CSRF / disallowed-Origin no-row invariants: **PASS** (live run).
+- Admin revoke → stale teacher `403 FORBIDDEN` curated UI: **PASS** (live run, `#form-error`).
+- Archive-only cleanup / permission restore / logout: **PASS** (live run; post-run fixture at baseline — `cp5teacher.can_create_course=f`, both created course rows `archived`).
+- Real-browser end-to-end matrix: **ACHIEVED**. US-F0 CP5 real-backend acceptance is **CLOSED**.
+
+### Decisions
+
+- The spec fix and this close-out are committed as the CP5 resolution. Fixture returned to baseline by the spec's own archive-only cleanup; no manual restore needed.
+- Per repo convention, work stops at this checkpoint boundary pending explicit user instruction for any downstream F0 work (F1/F9).
+
+### Sanitization / safety
+
+- No credentials, cookies, CSRF tokens, session values, or raw backend messages appear in this record or were committed. The transient env file `/tmp/us-f0-cp5-fixture.env` remains undeleted (not part of an approved destructive step); reuse per explicit approval or delete before a future unrelated run.

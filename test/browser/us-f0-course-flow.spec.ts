@@ -347,12 +347,12 @@ async function expectRejectedCourseMutation(
   pendingAttempts.delete(attempt.name);
 }
 
-function assertMutationHeaders(
+async function assertMutationHeaders(
   request: Request,
   expectedCsrf: string,
   label: string,
 ) {
-  const headers = request.headers();
+  const headers = await request.allHeaders();
   if (headers.origin !== uiOrigin) {
     throw new Error(`${label} did not send the exact UI Origin`);
   }
@@ -484,7 +484,7 @@ async function setPermissionViaUi(
     requestPromise,
     responsePromise,
   ]);
-  assertMutationHeaders(request, expectedCsrf, label);
+  await assertMutationHeaders(request, expectedCsrf, label);
   assertRequestBodyKeys(request, ["canCreateCourse"], label);
   expect(response.status(), `${label} status`).toBe(200);
   const account = parseAccount(await readJson(response, label));
@@ -741,7 +741,7 @@ test.describe("US-F0 real-backend Course flow", () => {
       createAttempt.requestObserved = true;
       const createResponse = await createResponsePromise;
       createAttempt.responseStatus = createResponse.status();
-      assertMutationHeaders(createRequest, createCsrf, "Course create");
+      await assertMutationHeaders(createRequest, createCsrf, "Course create");
       assertRequestBodyKeys(
         createRequest,
         ["name", "description"],
@@ -958,7 +958,7 @@ test.describe("US-F0 real-backend Course flow", () => {
       deniedAttempt.requestObserved = true;
       const deniedResponse = await deniedResponsePromise;
       deniedAttempt.responseStatus = deniedResponse.status();
-      assertMutationHeaders(
+      await assertMutationHeaders(
         deniedRequest,
         deniedCsrf,
         "revoked-permission Course create",
@@ -1010,7 +1010,7 @@ test.describe("US-F0 real-backend Course flow", () => {
       ) {
         throw new Error("Course denial UI rendered a raw backend message");
       }
-      await expect(teacherPage.getByRole("alert")).toContainText(
+      await expect(teacherPage.locator("#form-error")).toContainText(
         "你沒有權限執行此操作。",
       );
       await expect(teacherPage).toHaveURL(`${uiOrigin}/courses/new`);

@@ -462,3 +462,35 @@ CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, 
 ### Commit record
 
 - CP5 browser coverage and the related task records were committed as `128e9b5` (`test(browser): add US-F0 Course flow coverage`) on 2026-08-22.
+
+## 2026-08-24 — US-F0 CP5 live run — real-browser acceptance BLOCKED by a spec assertion bug
+
+### Context
+
+- CP-C (isolated fixture provisioning) had already been completed in a prior authorized session: admin `cp5admin` + teacher `cp5teacher` provisioned, forced password change done, and the 8 `F0_*` vars persisted in a transient `chmod 600` file `/tmp/us-f0-cp5-fixture.env`. Isolated project `smartlearning-cp5-f0-20260824` was healthy (backend 3000, db 55436, migrate exit 0, `CORS_ORIGIN=http://localhost:3001`).
+- This session executed the authorized **CP-D live Playwright run** and then recorded CP-E per the execution plan. User instruction: authorize CP-D, then commit the CP-E documentation.
+
+### CP-D result — FAIL (blocked), with root cause identified
+
+- Ran: `node test/browser/run.mjs --workers=1 test/browser/us-f0-course-flow.spec.ts` (fixtures sourced from the transient env file). Result: **1 failed** — never `test.skip` (fail-closed gate held).
+- **Failure point**: `Enable teacher course permission did not send the exact UI Origin` at `assertMutationHeaders` (spec line 357). Cleanup also reported failures: `restore original teacher permission, teacher logout`.
+- **Root cause (confirmed, not a backend/UI defect)**: The browser **does** send `Origin: http://localhost:3001` + a non-empty `X-CSRF-Token` on the PATCH (proven via the HAR trace snapshot and via `request.allHeaders()` which returned `origin: "http://localhost:3001"`). But the spec reads **`request.headers()`**, and on a real cross-origin request Playwright's `headers()` **omits the `Origin` key** → `headers.origin` is `undefined`. So `headers.origin !== uiOrigin` becomes `undefined !== "http://localhost:3001"` → false-negative throw. The CSRF sub-check passes because the `x-csrf-token` key *is* present in `headers()`. Fix is to read `request.allHeaders()` in `assertMutationHeaders`.
+- **Fixture side-effect during diagnosis**: the teacher `can_create_course` was toggled to `true` (from the provisioning baseline `false`) during isolated diagnostic runs, and a restore attempt was declined at the permission gate. **Fixtures are not at baseline** — the fixture is left with `cp5teacher.can_create_course = true`. No Course rows exist.
+
+### CP-E record — acceptance matrix
+
+- CP5 spec scope / context-bound API usage: **PASS** (static inspection + typecheck, as prior).
+- Teacher create/detail, server-ID redirect, exact request contract, keyboard/a11y, desktop overflow: **BLOCKED** (live run never advanced past the admin permission PATCH due to the spec bug).
+- Missing-CSRF / disallowed-Origin no-row invariants: **BLOCKED** (never reached).
+- Admin revoke → stale teacher `403 FORBIDDEN` curated UI: **BLOCKED** (never reached).
+- Archive-only cleanup / permission restore / logout: **NOT EXERCISED** (the run aborted at the first PATCH assertion; cleanup attempted but the restore/logout themselves reported failure).
+- Real-browser end-to-end matrix: **NOT ACHIEVED**. CP5 remains **BLOCKED** pending a spec fix (`request.allHeaders()`), fixture re-baselining, and an authorized re-run.
+
+### Decisions
+
+- Stop here per user instruction. Do not restore the fixture, do not modify product code, do not fix the spec, do not re-run, and do not commit — until a new explicit request.
+- Fixture state to correct before any future CP5 rerun: set `cp5teacher.can_create_course` back to `false` (CP-C baseline) and confirm `courses = 0`.
+
+### Sanitization / safety
+
+- No credentials, cookies, CSRF tokens, session values, or raw backend messages appear in this record or were committed. The transient env file `/tmp/us-f0-cp5-fixture.env` was **not** deleted (it was not part of an approved destructive step this session); delete it before any later run per the plan, or reuse per explicit approval.

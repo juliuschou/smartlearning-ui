@@ -84,3 +84,10 @@
 - **偵測訊號**：code review 發現 fixture gate 未涵蓋全部環境變數、cleanup set 在 projection assertion 前更新，或 archive loop 在第一個錯誤即停止；任何 POST 201/timeout/body parse failure 都應能對應到唯一 run name 的 recovery path。
 - **預防規則**：mutating browser test 必須要求全部 fixture/runtime target 變數且無 localhost defaults；只在 exact unique name + owner + draft + baseline absence 通過後追蹤 UUID；不確定的 create 要用 owner-scoped list + detail 且唯一名稱 reconciliation，無法證明時標記 cleanup blocked；每個 archive 嘗試獨立執行並 aggregate failures。
 - **Tripwire**：對任何 authenticated browser spec 檢查 `requiredFixtureNames` 是否覆蓋所有 target/session/name 設定、`createdIds.add` 是否位於 identity assertion 之後，並針對 response timeout/malformed 及多個 cleanup ID 寫 recovery/continue-path review。
+
+## Playwright `request.headers()` omits `Origin` on cross-origin; use `allHeaders()`
+
+- **失敗模式**: 在 real backend browser spec 中，用 `request.headers()` 讀 `Origin` 去斷言 mutation 是否送出正確 UI Origin。瀏覽器實際送出 `Origin: http://localhost:3001`（HAR trace 與 `allHeaders()` 都證明），但對跨源請求 Playwright 的 `headers()` 不包含 `origin` key → `headers.origin === undefined`，造成 `undefined !== "http://localhost:3001"` 的 false-negative，測試誤判為「未送出正確 Origin」而失敗。
+- **偵測訊號**: 同一 PATCH 請求，HAR/network trace 的 `headers` 陣列含 `Origin: http://localhost:3001`，且 `await request.allHeaders()` 回 `origin: "http://localhost:3001"`；但 `request.headers()` 的 key set 裡沒有 `origin`。spec 在 `assertMutationHeaders` 拋 `... did not send the exact UI Origin`。
+- **預防規則**: 跨源 mutation 的 header 斷言改用 `await request.allHeaders()`（含 `Origin`）而非 `request.headers()`。`x-csrf-token` 在 `headers()` 也在，但 `Origin` 只在 `allHeaders()` 可見。修正後必須實際跑一次 real-backend run 驗證，不能只靠 static inspection。
+- **Tripwire**: 任何 browser spec 用 `request.headers().origin`（或 `headers()["origin"]`）斷言 Origin 前，先確認改用 `allHeaders()`；grep `assertMutationHeaders` / `.headers().origin`。

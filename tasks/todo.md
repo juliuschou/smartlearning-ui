@@ -538,3 +538,84 @@ CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, 
 ### Sanitization / safety
 
 - No credentials, cookies, CSRF tokens, session values, or raw backend messages appear in this record or were committed. The transient env file `/tmp/us-f0-cp5-fixture.env` remains undeleted (not part of an approved destructive step); reuse per explicit approval or delete before a future unrelated run.
+
+## 2026-09-02 — FE-1.1 Transport contract closure
+
+### Goal and acceptance criteria
+
+- [ ] Align account/session role and student course lifecycle types with the approved BE contract.
+- [ ] Preserve exact student account creation payload semantics (`role: "student"`, `canCreateCourse: false`).
+- [ ] Add explicit `/me/courses` pagination transport, normalized defaults, and collision-free React Query keys.
+- [ ] Preserve student-only gating, abort signal forwarding, `retry: false`, inner Page projection, and curated error handling.
+- [ ] Add direct transport-boundary regression tests without changing `lib/api/client.ts`.
+- [ ] Keep scope limited to approved FE-1.1 files; do not modify routes, layouts, backend, env, dependencies, or WBS checkboxes.
+
+### Checkpoint status
+
+- [x] CP0 — provisional contract dispositions recorded (2026-09-02).
+- [x] CP1 — existing implementation plus minimum reinforcement approved (2026-09-02).
+- [x] CP2 — production diff scope review before verification (approved 2026-09-02).
+- [x] CP3 — focused evidence review (4 files / 26 tests passed, 2026-09-02).
+- [x] CP4 — static/regression/scope review (full gates and scope approved 2026-09-02).
+- [x] CP5 — optional real-backend smoke deferred by user (2026-09-02); no DB/browser mutation run.
+- [x] CP6 — final WBS approval; FE-1.1.1–FE-1.1.5 marked `[x]` with explicit user authorization (2026-09-02).
+
+### Risk & Rollback
+
+- Risk: medium-low; no DB/schema/backend change, with role narrowing and pagination cache identity as the main compatibility risks.
+- Rollback: revert only the approved FE-1.1 production/test files; restore response fields to `string` or remove pagination parameters if the frozen contract is later rejected. Do not reset unrelated work or delete runtime data.
+
+### Dependencies & Environment
+
+- Node 24+, Next.js 16.3.1, React 19, React Query 5, Vitest, and the existing `apiRequest` client.
+- Next.js route type generation is already available; no route files are being changed in this slice.
+- Backend contract is accepted provisionally; BE-1/BE-2 formal freeze and WBS release acceptance remain outside this implementation.
+
+### Working Notes
+
+- Approved production files: `lib/api/types.ts`, `lib/api/accounts.ts`, `lib/api/query-keys.ts`, `lib/api/enrollments.ts`.
+- Approved test files: `test/account-create-form.test.tsx`, `test/my-courses-view.test.tsx`, `test/enrollments-api.test.tsx`, `test/api-client.test.ts`.
+- Keep `lib/api/client.ts` unchanged unless a direct regression proves a frozen-contract mismatch; stop and report blast radius before expanding scope.
+- Keep account `status: "active"` fixtures unchanged; only course lifecycle status fixtures may change from the old mixed value.
+
+### Checklist
+
+- [x] Implement approved type narrowing and stale-comment/test documentation fixes.
+- [x] Implement normalized pagination params and cache-key factory.
+- [x] Add student payload, enrollment transport, and API client boundary tests.
+- [x] Run scope/diff review and stop at CP2 before verification (approved 2026-09-02).
+- [x] Run focused tests and static/regression gates after CP2 approval.
+- [x] Record Results and any deferred/blocking items after later checkpoint approvals.
+
+### Results — FE-1.1 Transport contract closure (2026-09-02)
+
+- **What changed:** aligned account/session role and student course lifecycle types; preserved student account creation transport and added exact payload coverage; added pagination-aware `/me/courses` transport with normalized defaults and collision-free query keys; added direct enrollment and API-client boundary regression tests.
+- **Production files:** `lib/api/types.ts`, `lib/api/accounts.ts`, `lib/api/query-keys.ts`, `lib/api/enrollments.ts`.
+- **Test files:** `test/account-create-form.test.tsx`, `test/my-courses-view.test.tsx`, `test/enrollments-api.test.tsx`, `test/api-client.test.ts`.
+- **Verification:** focused tests 4 files / 26 tests; static gates passed; full unit suite 17 files / 100 tests; Next.js build passed with 12 routes; final `git diff --check` passed.
+- **Scope:** no route/layout, backend, schema, env, dependency, config, or `lib/api/client.ts` production changes; no mock/fallback data added.
+- **Acceptance:** CP5 real-backend smoke explicitly deferred; FE-1.1.1–FE-1.1.5 WBS checkboxes updated only after explicit user authorization. BE-1/BE-2 formal freeze and release acceptance remain independent and unclaimed.
+
+### Verification evidence so far
+
+- Focused Vitest: 4 files / 26 tests passed.
+- Static gates: `next typegen`, `typecheck`, `lint:check`, and targeted Prettier check passed; one pre-existing React Compiler warning remains.
+- Full Vitest: 17 files / 100 tests passed.
+- Production build: Next.js 16.3.1 Turbopack passed; 12 routes generated (11 static, 1 dynamic).
+- `git diff --check`: passed with no output before this task-log update; rerun after final documentation edits.
+
+### CP6 traceability table — pending WBS checkbox approval
+
+| WBS item | Production evidence | Test evidence | Dependency / acceptance status |
+|---|---|---|---|
+| FE-1.1.1 | `lib/api/types.ts`: `AccountRole`, account/session role narrowing, course lifecycle status narrowing | `test/account-create-form.test.tsx`, `test/my-courses-view.test.tsx` | CP0 C0-2/C0-3 approved; BE-1/BE-2 formal freeze remains outside this slice |
+| FE-1.1.2 | `lib/api/accounts.ts`: existing `POST /admin/accounts` + `mutate: true` preserved; stale comment corrected | Exact student payload assertion in `test/account-create-form.test.tsx` | Student payload verified; no client/backend rewrite |
+| FE-1.1.3 | `lib/api/enrollments.ts`: explicit `page`/`pageSize`, defaults `1/20`, `URLSearchParams`, signal forwarding | Default/custom request assertions in `test/enrollments-api.test.tsx` and `test/my-courses-view.test.tsx` | `/me/courses` transport verified at unit boundary; real smoke deferred |
+| FE-1.1.4 | `lib/api/query-keys.ts`: root `all` plus parameterized `list(page,pageSize)`; hook preserves student gate/no retry/Page projection | Cache identity, gate, projection, signal, retry, and error identity assertions in `test/enrollments-api.test.tsx` | No pagination UI, prefetch, or infinite query added |
+| FE-1.1.5 | `lib/api/client.ts` unchanged; existing centralized unwrap/error path retained | Direct boundary assertions in `test/api-client.test.ts`; existing curated error tests remain green | No raw backend message rendered; no production client mismatch found |
+
+**BE dependency disposition:** CP0 `ACCEPT-PROVISIONAL`; this implementation verifies FE transport against current runtime/reference evidence and does not claim BE-1/BE-2 formal contract freeze.
+
+**Real-backend evidence:** CP5 explicitly deferred; no authenticated browser or database-writing smoke was executed for FE-1.1.
+
+**Remaining blocker:** WBS FE-1.1.1–FE-1.1.5 checkboxes require explicit final approval; BE-1/BE-2 release acceptance remains independent and not closed by this UI verification.

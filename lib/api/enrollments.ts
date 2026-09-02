@@ -4,6 +4,22 @@ import { queryKeys } from "@/lib/api/query-keys";
 import { useSession } from "@/lib/auth/session";
 import type { MyCourseDto, Page } from "@/lib/api/types";
 
+/** Parameters for the student's paginated active course roster. */
+export interface MyCoursesParams {
+  page?: number;
+  pageSize?: number;
+}
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+
+function normalizeMyCoursesParams({
+  page = DEFAULT_PAGE,
+  pageSize = DEFAULT_PAGE_SIZE,
+}: MyCoursesParams = {}) {
+  return { page, pageSize };
+}
+
 /**
  * My active course roster — `GET /api/v1/me/courses` (envelope-unwrapped to
  * `Page<MyCourseDto>`). Backend guard: Session + StudentGuard, so the endpoint
@@ -12,20 +28,27 @@ import type { MyCourseDto, Page } from "@/lib/api/types";
  * sessions. The hook still returns the query object so callers can render
  * loading/error states uniformly.
  */
+export function myCoursesQueryOptions(params: MyCoursesParams = {}) {
+  const { page, pageSize } = normalizeMyCoursesParams(params);
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+  });
 
-export const myCoursesQueryOptions = queryOptions<Page<MyCourseDto>>({
-  queryKey: queryKeys.myCourses.all,
-  queryFn: ({ signal }) =>
-    apiRequest<Page<MyCourseDto>>("/me/courses", { signal }),
-  retry: false,
-  staleTime: 30_000,
-});
+  return queryOptions<Page<MyCourseDto>>({
+    queryKey: queryKeys.myCourses.list(page, pageSize),
+    queryFn: ({ signal }) =>
+      apiRequest<Page<MyCourseDto>>(`/me/courses?${searchParams}`, { signal }),
+    retry: false,
+    staleTime: 30_000,
+  });
+}
 
 /** React hook returning the authenticated student's active course roster. */
-export function useMyCourses() {
+export function useMyCourses(params: MyCoursesParams = {}) {
   const { session } = useSession();
   const query = useQuery({
-    ...myCoursesQueryOptions,
+    ...myCoursesQueryOptions(params),
     enabled: session?.role === "student",
   });
   return {

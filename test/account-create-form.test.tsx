@@ -159,6 +159,48 @@ describe("AccountCreateForm — happy path", () => {
       },
     });
   });
+
+  it("submits an exact student payload with course creation disabled", async () => {
+    const user = userEvent.setup();
+    (apiRequest as unknown as Mock).mockResolvedValueOnce({
+      id: "student-1",
+      username: "student-one",
+      displayName: "Student One",
+      role: "student",
+      status: "active",
+      canCreateCourse: false,
+      mustChangePassword: true,
+      disabledAt: null,
+      createdAt: "2026-09-02T00:00:00.000Z",
+    });
+
+    renderForm();
+    await user.type(screen.getByLabelText("帳號名稱"), "student-one");
+    await user.type(screen.getByLabelText("顯示名稱"), "Student One");
+    await user.selectOptions(screen.getByLabelText("角色"), "student");
+    await user.type(
+      screen.getByLabelText("臨時密碼"),
+      "student-valid-password",
+    );
+    await user.click(screen.getByRole("button", { name: "建立帳號" }));
+
+    await screen.findByText(/已建立帳號「student-one」/);
+
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    const [path, opts] = (apiRequest as unknown as Mock).mock.calls[0];
+    expect(path).toBe("/admin/accounts");
+    expect(opts).toEqual({
+      method: "POST",
+      mutate: true,
+      body: {
+        username: "student-one",
+        displayName: "Student One",
+        role: "student",
+        canCreateCourse: false,
+        tempPassword: "student-valid-password",
+      },
+    });
+  });
 });
 
 describe("AccountCreateForm — stable error codes", () => {

@@ -87,7 +87,7 @@ describe("MyCoursesView — roster states", () => {
           courseId: "course-1",
           name: "微積分一",
           description: "基礎微積分",
-          status: "active",
+          status: "draft",
           ownerAccountId: "teacher-1",
           enrolledAt: "2026-08-19T00:00:00.000Z",
           createdAt: "2026-08-01T00:00:00.000Z",
@@ -99,8 +99,11 @@ describe("MyCoursesView — roster states", () => {
     renderView();
     expect(await screen.findByText("微積分一")).toBeInTheDocument();
     expect(screen.getByText("基礎微積分")).toBeInTheDocument();
-    expect(screen.getByText("active")).toBeInTheDocument();
-    expect(apiRequest).toHaveBeenCalledWith("/me/courses", expect.anything());
+    expect(screen.getByText("draft")).toBeInTheDocument();
+    expect(apiRequest).toHaveBeenCalledWith(
+      "/me/courses?page=1&pageSize=20",
+      expect.anything(),
+    );
   });
 
   it("renders the empty state when the roster has no active courses", async () => {

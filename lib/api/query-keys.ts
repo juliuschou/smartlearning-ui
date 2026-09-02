@@ -18,5 +18,7 @@ export const queryKeys = {
   },
   myCourses: {
     all: ["my-courses"] as const,
+    list: (page: number, pageSize: number) =>
+      ["my-courses", "list", page, pageSize] as const,
   },
 } as const;

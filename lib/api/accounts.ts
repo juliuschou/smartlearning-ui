@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/api/client';
-import { queryKeys } from '@/lib/api/query-keys';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api/client";
+import { queryKeys } from "@/lib/api/query-keys";
 import type {
   AccountDto,
   CreateAccountPayload,
@@ -12,8 +12,8 @@ import type {
 /**
  * Create an account via `POST /api/v1/admin/accounts`.
  *
- * Backend guard: Session + CSRF + Admin. The UI only offers `admin|teacher`
- * (student is intentionally excluded this round even though the DTO allows it).
+ * Backend guard: Session + CSRF + Admin. The UI offers `admin|teacher|student`
+ * and forces `canCreateCourse` to false for student accounts.
  * `canCreateCourse` is always sent; for `admin` the backend ignores it, for
  * `teacher` it controls course-creation permission.
  *
@@ -24,8 +24,8 @@ export function useCreateAccount() {
   const queryClient = useQueryClient();
   return useMutation<AccountDto, Error, CreateAccountPayload>({
     mutationFn: (payload) =>
-      apiRequest<AccountDto>('/admin/accounts', {
-        method: 'POST',
+      apiRequest<AccountDto>("/admin/accounts", {
+        method: "POST",
         body: payload,
         mutate: true,
       }),

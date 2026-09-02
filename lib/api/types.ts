@@ -81,7 +81,7 @@ export interface AccountDto {
   id: string;
   username: string;
   displayName: string;
-  role: string;
+  role: AccountRole;
   status: string;
   canCreateCourse: boolean;
   mustChangePassword: boolean;
@@ -94,7 +94,7 @@ export interface SessionDto {
   accountId: string;
   username: string;
   displayName: string;
-  role: string;
+  role: AccountRole;
   canCreateCourse: boolean;
   mustChangePassword: boolean;
   sessionId: string;
@@ -149,7 +149,7 @@ export interface MyCourseDto {
   courseId: string;
   name: string;
   description: string | null;
-  status: string;
+  status: CourseStatus;
   ownerAccountId: string;
   enrolledAt: string;
   createdAt: string;

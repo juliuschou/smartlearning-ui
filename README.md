@@ -1,109 +1,179 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 智學互動平台 — Web UI
 
-## Getting Started
+Next.js 16 + React 19 的前端。此專案使用 App Router、TypeScript、Tailwind CSS v4、React Query、React Hook Form 與 Zod，透過後端 `/api/v1` REST API 提供登入、帳號管理、老師課程與學員課程功能。
 
-First, run the development server:
+> 前端遵循 **Option B**：先完成並確認後端契約，再接上對應 UI。未完成的後端流程不以 mock、placeholder API 或 runtime fallback 取代。
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 目前功能
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Web session 登入、登出與 `next` 目的地導向
+- `mustChangePassword` 強制改密碼 gate 與密碼變更頁
+- 角色專屬 shell：管理員、老師、學員
+- 管理員帳號列表、詳情、建立，以及老師開課權限切換
+- 老師建立課程與讀取課程詳情
+- 學員讀取自己的有效課程列表（支援分頁 transport）
+- 集中的 API envelope 解包、CSRF/Origin header 與穩定錯誤碼處理
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+尚未包含的功能（需等待相應後端契約或後續 slice）：題目編輯、課堂即時互動、學員加選 UI，以及其他未列在上述清單的流程。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 快速開始
 
-## Learn More
+### 環境需求
 
-To learn more about Next.js, take a look at the following resources:
+- Node.js 24+
+- npm
+- 若要執行登入或其他受保護流程：可連線的 `smartLearning-backend`，以及已完成 migration 的資料庫
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
----
-
-## 本地開發環境（搭配後端測試）
-
-前端跑在 **port 3001**，後端 API 在 **port 3000**。`lib/api/client.ts` 的 `API_BASE`
-預設是 `http://localhost:3000/api/v1`，可被 `NEXT_PUBLIC_API_BASE` 覆蓋。
-
-### 啟動前端
+### 安裝與啟動
 
 ```bash
 npm install
-npm run dev          # next dev -p 3001 → http://localhost:3001
+npm run dev
 ```
 
-### 啟動後端（在 `smartLearning-backend/`）
+開啟 <http://localhost:3001>。
 
-後端以 Docker Compose 跑（Postgres + migrate + NestJS API）。詳見後端的 `docker-compose.yml`。
+前端開發伺服器固定使用 port `3001`，因為本地後端預設使用 port `3000`。
+
+### 常用指令
+
+```bash
+npm run dev          # Next.js development server，port 3001
+npm run build        # production build
+npm run start -- -p 3001  # 啟動已 build 的 production server
+npm run lint:check   # ESLint（不修改檔案）
+npm run typecheck    # TypeScript noEmit
+npm test             # Vitest unit/component tests
+npm run test:watch   # Vitest watch mode
+npm run test:browser # Playwright browser runner
+```
+
+Next.js 16 的 route helper types 由 typegen 產生。若是新 checkout 或新增 route，先執行：
+
+```bash
+npx next typegen
+npm run typecheck
+```
+
+## 後端整合
+
+### API base URL
+
+`lib/api/client.ts` 的 `API_BASE` 讀取 `NEXT_PUBLIC_API_BASE`，未設定時使用：
+
+```text
+http://localhost:3000/api/v1
+```
+
+例如切換到其他本地 backend：
+
+```bash
+NEXT_PUBLIC_API_BASE=http://localhost:3000/api/v1 npm run dev
+```
+
+修改 `NEXT_PUBLIC_API_BASE` 後請重新啟動 Next.js dev server；該值會在建置時與 client bundle 中使用。
+
+### 啟動 sibling backend
+
+在 `smartLearning-backend/` 目錄依其 README 與環境檔啟動 backend。Compose stack 包含 PostgreSQL、一次性 migration container 與 NestJS API：
 
 ```bash
 cd ../smartLearning-backend
-docker compose --env-file .env.production up -d   # db + migrate + backend
+docker compose --env-file .env.production up -d
 docker compose logs -f backend
 ```
 
-後端 health probe：`GET http://localhost:3000/health/live`（**raw，未包 envelope**）。
-
-### 建立（測試用）第一個 admin 帳號
-
-UAT DB 預設是空的（無帳號）。用後端的 bootstrap CLI 建立第一個 admin，憑證一律走
-**環境變數**（不進 shell history）：
+確認 backend：
 
 ```bash
-docker exec \
-  -e BOOTSTRAP_ADMIN_USERNAME=admin \
-  -e BOOTSTRAP_ADMIN_PASSWORD='<你的密碼>' \
-  -e BOOTSTRAP_ADMIN_DISPLAY_NAME='Test Admin' \
-  smartlearning-backend \
-  node dist/src/bootstrap/bootstrap-admin.js
-# 成功印出：Bootstrapped first admin: id=... username=admin role=admin
+curl -i http://localhost:3000/health/live
+curl -i http://localhost:3000/health/ready
 ```
 
-> 憑證一律走環境變數（不進 shell history）。**不要把實際密碼寫進這個檔案**——
-> README 會進版控；密碼請自行設定並妥善保管。
+`/health/live` 與 `/health/ready` 是 raw response，不使用 API envelope。
 
-bootstrap 只能跑一次（成功後寫入 `system_setting.bootstrap_completed=true`）。
-要重建帳號需先清掉該設定或整個 DB。
+### CORS 與 CSRF
 
-### F6 登入/登出測試
+本地 backend 的 `CORS_ORIGIN` 必須明確允許前端 origin：
 
-1. 開 `http://localhost:3001`
-2. 用上面 bootstrap 建立的帳號密碼登入
-3. 登入成功後依角色跳轉（admin → `/admin`）；再測登出
+```text
+http://localhost:3001
+```
 
-### 已知陷阱（踩過記錄）
+CSRF 保護的 mutation 會由 API client 自動附加：
 
-- **`NEXT_PUBLIC_API_BASE` 必須指向後端 3000**。若 dev server 帶到
-  `http://localhost:3002`（3002 無服務），登入會 `net::ERR_CONNECTION_REFUSED`
-  → 前端顯示「無法連線到伺服器，請稍後再試。」（`lib/api/client.ts` 的
-  `NETWORK_ERROR` catch-all）。檢查 dev server 實際 env：
-  `tr '\0' '\n' < /proc/$(pgrep -f next-server|head -1)/environ | grep NEXT_PUBLIC_API_BASE`。
-  若錯了，用正確 env 重啟：
-  `NEXT_PUBLIC_API_BASE=http://localhost:3000/api/v1 npm run dev`
-  （重啟前先 `kill` 舊的 `next dev -p 3001` 進程）。
-- **後端 `CORS_ORIGIN` 必須包含前端 origin `http://localhost:3001`**。CSRF 採
-  fail-closed 的 Origin allowlist，若 3001 不在白名單，所有需認證的 mutation
-  會回 403 `AUTH_CSRF_INVALID`。Docker Compose 的 backend 從 `.env.production`
-  讀 `CORS_ORIGIN`；臨時覆蓋（不改檔、不持久）：
-  `CORS_ORIGIN="http://localhost:3000,http://localhost:3001" docker compose --env-file .env.production up -d backend`
-- **`migrate` 容器 `Exited (0)` 是正常的**——它是一次性容器，跑完 migrations
-  就退出；backend 才會接著起來。不要把它誤判為「整個 stack 沒起來」。
-- 回應永遠是 envelope：資料在 `response.data`；`/health/*` 是 raw 不套 envelope。
-  Logout 成功回 `data: null`。
+- `credentials: include`，傳送 DB-backed session cookie
+- `Origin: http://localhost:3001`
+- 從 `__Host-csrf` cookie 讀取的 `X-CSRF-Token`
+
+登入本身不附 CSRF header；登入回應設定 session 與 CSRF cookies。若 CORS origin 不正確，authenticated mutation 會以 `AUTH_CSRF_INVALID` 失敗。
+
+## API client 約定
+
+`lib/api/client.ts` 是所有 `/api/v1` 呼叫的集中入口：
+
+- 成功回應 `{ data, meta, error }` 會解包成 `body.data`
+- 錯誤會轉成 `ApiRequestError`，UI 應依穩定的 `code` 顯示整理過的訊息
+- 不應在畫面渲染 backend 原始 `message`
+- GET query 會轉送 `AbortSignal`；不需要重試的 query 明確設定 `retry: false`
+- health probe 不可套用這個 client，因為 health response 不在 envelope 中
+
+後端 DTO 與 endpoint 契約以以下文件為準：
+
+- `../smartLearning-backend/docs/frontend-api-reference.md`
+- `../docs/智學互動平台/30_系統設計/API 與共用 Schema 設計.md`
+- `../docs/智學互動平台/30_系統設計/Web Auth 與安全設計.md`
+
+## 路由
+
+| Route | 用途 | 存取角色 |
+| --- | --- | --- |
+| `/` | 公開入口，目前為簡單 landing | 公開 |
+| `/login` | 登入 | 公開 |
+| `/settings/password` | 變更密碼；也是 `mustChangePassword` 使用者的唯一 gate target | 已登入 |
+| `/admin` | 管理員首頁 | `admin` |
+| `/admin/accounts` | 帳號列表 | `admin` |
+| `/admin/accounts/new` | 建立帳號 | `admin` |
+| `/admin/accounts/:accountId` | 帳號詳情與開課權限 | `admin` |
+| `/teacher` | 老師首頁 | `teacher` |
+| `/courses/new` | 建立課程 | `teacher` |
+| `/courses/:courseId` | 課程詳情 | `teacher` |
+| `/student` | 我的課程 | `student` |
+
+Route group 的 layout 會在 render children 前處理 session 載入、角色檢查與 forced password-change redirect。未登入者會被導向 `/login?next=...`，且 `next` 只接受 same-origin 路徑。
+
+## 測試
+
+一般 unit/component 測試：
+
+```bash
+npm test
+```
+
+列出 browser specs 而不執行 authenticated mutation：
+
+```bash
+node test/browser/run.mjs --list
+```
+
+目前的 real-backend Playwright specs 需要隔離的 backend、migration 完成的測試資料庫、`3000`/`3001` runtime、精確的 `CORS_ORIGIN`，以及各 spec 要求的 fixture environment variables。缺少條件時應保持 blocked，不要用 mock 取代真實驗收。
+
+## 專案結構
+
+```text
+app/                 App Router routes、layouts、loading/error boundaries
+components/           可重用 UI/auth 元件
+features/             依功能分組的 client views 與表單
+lib/api/              API client、wire types、query keys、feature hooks
+lib/auth/             session query 與 session state
+test/                 Vitest 與 Playwright 測試
+```
+
+`tasks/` 保存各 slice 的 acceptance criteria、驗證結果與已知限制；進行較大變更前請先閱讀相關 task log 與 `tasks/lessons.md`。
+
+## 開發注意事項
+
+- 不要把密碼、session cookie、CSRF token 或 fixture credentials 寫入 README、source、測試輸出或 commit。
+- 不要直接修改 `next-env.d.ts`；route types 應由 `next typegen` 或 `next build` 產生。
+- 前端與 backend 是兩個獨立 git repository；請在本目錄執行 UI 指令。
+- 完成變更前至少執行受影響的 targeted tests、`npm run typecheck`、`npm run lint:check`、`npm run build` 與 `git diff --check`。

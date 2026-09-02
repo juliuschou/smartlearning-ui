@@ -140,12 +140,7 @@ describe("MyCoursesView — query gating", () => {
     sessionState.role = "admin";
     renderView();
     // The query is `enabled` only for student role; flush microtasks and assert
-    // no request to /me/courses was ever made.
-    await waitFor(() =>
-      expect(apiRequest).not.toHaveBeenCalledWith(
-        "/me/courses",
-        expect.anything(),
-      ),
-    );
+    // no roster request was ever made.
+    await waitFor(() => expect(apiRequest).not.toHaveBeenCalled());
   });
 });

@@ -97,7 +97,7 @@ describe("apiRequest transport boundary", () => {
       }),
     );
 
-    await expect(apiRequest("/health/ready")).rejects.toMatchObject({
+    await expect(apiRequest("/courses")).rejects.toMatchObject({
       code: "INTERNAL_ERROR",
       status: 502,
     });

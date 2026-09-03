@@ -33,4 +33,10 @@ export const queryKeys = {
     list: (courseId: string, q: string, page: number, pageSize: number) =>
       ["student-search", courseId, "list", q, page, pageSize] as const,
   },
+  liveSessions: {
+    all: ["live-sessions"] as const,
+    detail: (id: string) => ["live-sessions", id] as const,
+    results: (id: string, sessionQuestionId: string) =>
+      ["live-sessions", id, "results", sessionQuestionId] as const,
+  },
 } as const;

@@ -25,6 +25,12 @@ const MESSAGES: Record<string, string> = {
   // Enrollment roster (FE-2.2)
   COURSE_NOT_EDITABLE: "課程已封存，無法修改名冊。",
   VALIDATION_ERROR: "輸入內容不符合要求，請檢查欄位後再試一次。",
+  // Live session (FE-3.1)
+  SESSION_NOT_JOINABLE: "此課堂目前無法加入。",
+  SESSION_QUESTION_NOT_OPEN: "此題目前未開放作答。",
+  QUESTION_LOCKED_BY_SESSION: "此題已被課堂鎖定，無法修改。",
+  RESULTS_NOT_REVEALED: "結果尚未公布，請稍後再試。",
+  SUBMISSION_CONFLICT: "作答內容有衝突，請重新整理後再試一次。",
   // Rate limit (US-F7 / R-F7-7)
   RATE_LIMITED: "嘗試次數過多，請稍後再試。",
   // Transport

@@ -190,3 +190,129 @@ export interface MyCourseDto {
   createdAt: string;
   updatedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Live Session (FE-3.1) — teacher live classroom transport.
+// Aligned with backend `src/modules/live-sessions/api/dto/live-session.dto.ts`
+// and `results.dto.ts`. All mutations return 201; classify by envelope `data`,
+// not status. There is no session-list endpoint (only `GET /live-sessions/:id`).
+// ---------------------------------------------------------------------------
+
+/** LiveSession lifecycle values returned by the LiveSession API. */
+export type LiveSessionStatus = "waiting" | "active" | "closed" | "cancelled";
+
+/** SessionQuestion lifecycle values. */
+export type SessionQuestionStatus = "not_open" | "open" | "closed";
+
+/** Question snapshot types carried by a SessionQuestion. */
+export type QuestionSnapshotType = "poll" | "quiz" | "open_text";
+
+/** Ordered question selection within a session (question definition id + position). */
+export interface QuestionSelection {
+  questionDefinitionId: string;
+  position: number;
+}
+
+/** A single option snapshot embedded in a SessionQuestion. */
+export interface SessionQuestionOption {
+  id: string;
+  optionRef: string | null;
+  text: string;
+  position: number;
+}
+
+/**
+ * `SessionQuestionDto` — immutable snapshot of a question at session start.
+ * `hasSubmitted` is present only on participant projections (not teacher detail).
+ */
+export interface SessionQuestion {
+  id: string;
+  liveSessionId: string;
+  questionDefinitionId: string | null;
+  position: number;
+  status: SessionQuestionStatus;
+  snapshotType: QuestionSnapshotType;
+  snapshotPrompt: string;
+  snapshotSelectionMode: string | null;
+  openedAt: string | null;
+  closedAt: string | null;
+  hasSubmitted?: boolean;
+  options: SessionQuestionOption[];
+}
+
+/**
+ * `LiveSessionDto` from `GET /live-sessions/:id` (envelope-unwrapped).
+ * `joinedCount`/`votedCount` are present on the teacher detail projection.
+ */
+export interface LiveSession {
+  id: string;
+  courseId: string;
+  status: LiveSessionStatus;
+  sessionCode: string;
+  startedAt: string | null;
+  closedAt: string | null;
+  autoClosed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  joinedCount?: number;
+  votedCount?: number;
+  questionSelections: QuestionSelection[];
+  sessionQuestions: SessionQuestion[];
+}
+
+/** `POST /live-sessions` request body. */
+export interface CreateLiveSessionPayload {
+  courseId: string;
+  questionIds: string[];
+}
+
+/** Per-option count shared by poll and quiz results. */
+export interface OptionCount {
+  optionId: string;
+  optionRef: string | null;
+  text: string;
+  count: number;
+  /** Present for quiz only; omitted for poll/open_text. */
+  isCorrect?: boolean;
+}
+
+/** Poll results projection (discriminated by `snapshotType: 'poll'`). */
+export interface PollResults {
+  snapshotType: "poll";
+  selectionMode: "single" | "multiple";
+  status: "open" | "closed";
+  options: OptionCount[];
+  totalResponses: number;
+}
+
+/** Quiz results projection (discriminated by `snapshotType: 'quiz'`). */
+export interface QuizResults {
+  snapshotType: "quiz";
+  status: "open" | "closed";
+  options: OptionCount[];
+  totalResponses: number;
+  /** Present for teacher always; participant only after close. */
+  correctCount?: number;
+  incorrectCount?: number;
+  correctnessRate?: number;
+}
+
+/** Anonymized open-text answer (no identity linkage). */
+export interface OpenTextResponse {
+  text: string;
+}
+
+/** Open-text results projection (discriminated by `snapshotType: 'open_text'`). */
+export interface OpenTextResults {
+  snapshotType: "open_text";
+  status: "open" | "closed";
+  responses: OpenTextResponse[];
+  totalResponses: number;
+}
+
+/**
+ * `SessionQuestionResultsDto` — discriminated union returned by
+ * `GET /live-sessions/:id/questions/:sessionQuestionId/results`.
+ */
+export type SessionQuestionResults =
+  PollResults | QuizResults | OpenTextResults;

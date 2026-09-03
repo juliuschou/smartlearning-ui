@@ -626,3 +626,100 @@ CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, 
 **Real-backend evidence:** CP5 explicitly deferred; no authenticated browser or database-writing smoke was executed for FE-1.1.
 
 **Remaining boundary:** WBS FE-1.1.1–FE-1.1.5 checkboxes were explicitly approved and updated; BE-1/BE-2 release acceptance remains independent and is not closed by this UI verification.
+
+## 2026-09-03 — FE-1.2 Routing／authorization
+
+### Goal and acceptance criteria
+
+- [ ] Student login without a valid `next` uses `router.replace("/student")`.
+- [ ] Session loading renders no protected children.
+- [ ] Missing sessions redirect to `/login?next=<encoded pathname>`.
+- [ ] Admin/teacher sessions never render Student children.
+- [ ] `mustChangePassword=true` takes precedence and redirects to `/settings/password`.
+- [ ] Any authenticated role, including a forced-password user, can remain on the role-neutral password settings route.
+- [ ] Logout keeps the CSRF-aware mutation, clears the complete local QueryClient cache on success and failure, preserves failure UI, and replaces history with `/login`.
+- [ ] StudentLayout, ProtectedLayout, and logout success/failure paths have direct regression coverage.
+- [ ] Targeted/full unit, typegen, typecheck, lint, build, and diff checks pass; browser cases are explicitly classified before WBS closeout.
+
+### Checkpoint status
+
+- [x] CP0 — baseline and scope audit completed (2026-09-03).
+- [x] CP1 — minimal implementation and focused regression review completed after user confirmation (2026-09-03).
+- [x] CP2 — full static verification completed; browser matrix constrained by missing fixtures (2026-09-03).
+- [x] CP3 — task Results closeout completed with user-accepted constrained browser evidence; WBS intentionally unchanged (2026-09-03).
+
+### FE-1.2.1–FE-1.2.6 audit matrix
+
+| WBS item                            | Existing production evidence                                                                                                     | Existing test evidence                                                                                                       | Gap / disposition                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| FE-1.2.1 Student login redirect     | `features/auth/LoginForm.tsx` resolves role `student` to `/student` and uses `router.replace`; invalid/absent `next` is guarded. | `test/login-form.test.tsx` covers role-based redirect behavior.                                                              | No production change; retain direct login regression and real-browser proof.                          |
+| FE-1.2.2 Student route group/layout | `app/(student)/layout.tsx` and `app/(student)/student/page.tsx` provide the `/student` route group and shell.                    | No direct StudentLayout suite.                                                                                               | Add `test/student-layout.test.tsx`.                                                                   |
+| FE-1.2.3 Session gate               | Student and protected layouts render loading state, suppress children, and redirect missing sessions with encoded pathname.      | `test/teacher-layout.test.tsx` demonstrates the established gate-test pattern; no direct Student/Protected suites.           | Add direct StudentLayout and ProtectedLayout coverage.                                                |
+| FE-1.2.4 Student role gate          | Student layout checks `session.role === "student"` and redirects other roles without rendering children.                         | No direct StudentLayout role-negative suite.                                                                                 | Add admin/teacher wrong-role tests; backend remains authorization authority.                          |
+| FE-1.2.5 `mustChangePassword` gate  | Student layout redirects forced users before role check; protected layout intentionally allows them to use `/settings/password`. | Teacher layout has precedence coverage; ProtectedLayout lacks direct regression coverage.                                    | Add precedence and role-neutral ProtectedLayout tests.                                                |
+| FE-1.2.6 Logout cache clear         | `lib/api/auth.ts` currently clears QueryClient only in `onSuccess`; `LogoutButton` navigates to `/login` on both resolve/reject. | `test/logout.test.tsx` covers CSRF mutation, success clear, failure message, and navigation, but not failure cache clearing. | Move clear to `onSettled`, update lifecycle comments, and add success/failure whole-cache assertions. |
+
+### Risk & Rollback
+
+- **Risk: medium** — auth-adjacent redirect ordering and local cache lifecycle; no backend/schema/DB/API changes.
+- `onSettled` is intentionally fail-closed because the UI navigates away even when logout fails; local protected data must not remain in the cache.
+- Gate tests must preserve loading → must-change → session/role → render ordering to prevent content flash or redirect loops.
+- Roll back by reverting the logout hook/comments/tests and, separately, task/WBS documentation. No data rollback is involved.
+
+### Dependencies & Environment
+
+- Node 24+, Next.js 16.3.1, React 19, TanStack React Query 5, Vitest/jsdom, and Playwright.
+- Run `npx next typegen` before typecheck once route/test implementation changes are made.
+- Real-browser verification requires a running frontend/backend, migrated isolated backend test DB, explicit CORS origin, and isolated student/admin/teacher fixtures; no mock or placeholder endpoint is allowed.
+- Frontend layouts are UX/navigation gates only; backend session and role guards remain the authorization authority.
+
+### Working Notes
+
+- CP0 baseline working tree was clean on branch `docs/tasks-us-f0-cp1-disposition`, HEAD `9745e5adbf0a743cd8ef25415f4546ec22c29d9c` (`docs: update frontend README`).
+- Baseline target suite: 4 files / 31 tests passed; 0 failures and 0 skips. `npm run typecheck` passed with no diagnostics. A non-failing Vite `configLoader` warning was observed.
+- Existing route/layout behavior is sufficient for this story; do not rewrite `app/(student)/layout.tsx`, `app/(protected)/layout.tsx`, or `features/auth/LoginForm.tsx`.
+- Expected CP1 files only: `lib/api/auth.ts`, `components/auth/LogoutButton.tsx`, `test/logout.test.tsx`, new `test/student-layout.test.tsx`, new `test/protected-layout.test.tsx`.
+- Explicit exclusions: FE-1.3 course UI, backend/API/DB/schema/migrations, `proxy.ts`/`middleware.ts`, role-neutral `next` policy changes, shared routing refactor, and premature WBS edits.
+
+### CP0 Results
+
+- **What changed:** task record only; no production or test files were edited.
+- **Baseline verification:** targeted Vitest command passed (4 files / 31 tests, 0 failed, 0 skipped); `npm run typecheck` passed.
+- **Current state:** CP0 was accepted by the user; CP1 production/test changes and focused verification are recorded below.
+
+### CP1 Results — focused implementation review (2026-09-03)
+
+- **What changed:** moved `useLogout` cache clearing from `onSuccess` to `onSettled` in `lib/api/auth.ts`; updated `LogoutButton` lifecycle comments; added direct StudentLayout and ProtectedLayout gate suites; extended logout tests to prove whole-cache cleanup on success and rejection.
+- **Changed files:** `lib/api/auth.ts`, `components/auth/LogoutButton.tsx`, `test/logout.test.tsx`, `test/student-layout.test.tsx`, `test/protected-layout.test.tsx`, and this task record.
+- **Focused tests:** `npm test -- test/student-layout.test.tsx test/protected-layout.test.tsx test/logout.test.tsx test/login-form.test.tsx test/change-password-form.test.tsx test/teacher-layout.test.tsx` → 6 files / 45 tests passed; 0 failures and 0 skips.
+- **Static gates:** `npm run typecheck` passed; `npm run lint:check` passed with one existing non-blocking React Compiler warning in `features/admin/AccountCreateForm.tsx:68`; `git diff --check` passed.
+- **Scope:** no route/layout production rewrites, backend/API/DB/schema/migration, proxy/middleware, dependency, or FE-1.3 changes. Browser verification and WBS updates remain deferred to later checkpoints.
+- **Current state:** CP1 was accepted by the user; CP2 full verification and browser disposition are recorded below.
+
+### CP2 Results — full verification and browser disposition (2026-09-03)
+
+- **Full static verification:** `npx next typegen` passed; `npm test` passed with 19 files / 114 tests, 0 failures and 0 skips; `npm run typecheck` passed; `npm run lint:check` passed with 0 errors and one existing React Compiler warning at `features/admin/AccountCreateForm.tsx:68`; `npm run build` passed with 12/12 static generation; `git diff --check` passed.
+- **Route evidence:** required `/login`, `/student`, and `/settings/password` routes remain present in the source/build route set.
+- **Scope evidence:** changes remain limited to the five CP1 production/test files plus `tasks/todo.md`; no `proxy.ts`/`middleware.ts`, backend, DB, schema, migration, dependency, or FE-1.3 changes.
+- **Browser preflight:** `npm run test:browser -- --list` passed and listed only the existing US-F0/US-F16 real-backend specs. The required FE-1.2 fixture variables (`F0_*`/`F16_*`) were all unset; no backend-backed authenticated browser mutation was attempted.
+- **Browser matrix disposition:** **CONSTRAINED**, not PASS. Student/admin/teacher login, unauthenticated preservation, forced-password transition, password settings, logout Back-cache behavior, and failed/expired logout could not be safely exercised without explicit isolated credentials/backend fixture configuration. Automated unit evidence covers the rejection-path cache guarantee.
+- **Current state:** User accepted the constrained browser evidence; task record closeout is recorded below and WBS remains intentionally unchecked.
+
+### CP3 Results — documentation closeout (2026-09-03)
+
+- **User disposition:** accepted the constrained browser evidence; no authenticated backend browser run was claimed.
+- **Documentation:** task checklist, audit matrix, acceptance criteria, risk/rollback, dependencies/environment, working notes, and CP0–CP2 evidence are recorded in this file.
+- **WBS disposition:** `docs/智學互動平台/00_專案規劃/智學互動平台剩餘工作WBS.md` was not modified. FE-1.2.1–FE-1.2.6 remain unchecked because real-browser acceptance was constrained, not passing.
+- **Final scope:** only `lib/api/auth.ts`, `components/auth/LogoutButton.tsx`, `test/logout.test.tsx`, `test/student-layout.test.tsx`, `test/protected-layout.test.tsx`, and `tasks/todo.md` changed; existing route implementations were preserved.
+- **Rollback:** revert the five implementation/test files independently from this task record; no backend/API/DB/schema/migration rollback is required.
+- **Final state:** FE-1.2 implementation and static/unit verification are complete; real-backend browser acceptance remains an explicit follow-up requiring isolated fixtures.
+
+### CP4 Results — isolated real-browser acceptance (2026-09-03)
+
+- **Fixture:** created a fresh Compose project `smartlearning-fe12-20260903110000-7f2a4b` with a new PostgreSQL volume/database, one-shot migration, and backend bound only to `127.0.0.1:3000`; no existing project or volume was reused. The exact containers were stopped after evidence capture; the disposable volume was preserved for inspection.
+- **Runtime hardening:** the browser fixture used same-host `localhost` for API/UI cookies and `SESSION_COOKIE_SECURE=true` so the real browser accepted the `__Host-session`/`__Host-csrf` cookies. Credentials were generated and retained only in the provisioning shell; no passwords, cookies, CSRF values, raw bodies, or secrets were recorded.
+- **Provisioning:** migration exited 0; `/health/live` and `/health/ready` passed; bootstrap admin creation passed; teacher, normal student, and forced-password student were created through the real API; teacher and normal student completed the real password-change flow; forced student remained forced until browser acceptance.
+- **Browser matrix:** **PASS** — the ephemeral Playwright Chromium harness passed all 8 groups: student default redirect, valid `next`, invalid `next` fallback, unauthenticated destination preservation, admin/teacher Student denial, forced-password precedence plus real change, role-neutral password settings for admin/teacher/student, and logout CSRF/Origin plus browser-back protection.
+- **Constrained disposition:** failed/expired logout remains **CONSTRAINED** by design; no unsafe DB mutation, mock, or forced expiry was used to manufacture that case. This does not weaken the unit-level rejection-path cache-clear coverage.
+- **Harness-only corrections:** same-host API cookie targeting, secure localhost cookie fixture, exact `新密碼` label matching, and asynchronous visibility waits were temporary acceptance-harness changes outside the repositories; no permanent browser spec/config was added.
+- **WBS disposition:** FE-1.2.1–FE-1.2.6 were marked `[x]` with explicit user acceptance of the CP4 real-browser evidence (2026-09-03). The prior constrained evidence is superseded by this CP4 PASS for the covered matrix.

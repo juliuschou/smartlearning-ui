@@ -98,3 +98,17 @@
 - **偵測訊號**: `expect(locator).toContainText` 拋 `Error: strict mode violation: getByRole('alert') resolved to 2 elements`，第二個是 `<div role="alert" id="__next-route-announcer__">…`。產品 UI 其實正常渲染（form-error 內容正確），是 locator 不夠唯一。
 - **預防規則**: 對「單一組件的錯誤提示」不要用泛型 `getByRole("alert")`；改用穩定且有意的定位器，例如 `page.locator("#form-error")`（`ErrorAlert` 傳入的 `id`），或 `getByRole("alert", { name: /你沒有權限/ })`。`ErrorAlert` 已支援 `id` prop，直接用 id 最穩。
 - **Tripwire**: 任何 browser spec 用 `getByRole("alert")`（或對不唯一 `role` 的 locator）斷言單一錯誤文字前，先確認該 `role` 在頁面上唯一；grep `getByRole("alert")` / `getByRole('alert')`。修正後必須實際跑一次 real-backend run 驗證，不能只靠 static inspection。
+
+## Real-browser fixtures must share the API hostname and use secure __Host cookies
+
+- **失敗模式**：以 `http://localhost:3001` 開啟 UI、卻將 `NEXT_PUBLIC_API_BASE` 設為 `http://127.0.0.1:3000`，瀏覽器沒有把 API 登入後的 host-only session cookie 帶回另一個 hostname；改用 same-host `localhost` 後仍因 `__Host-` cookie 在 plain HTTP 測試配置下被瀏覽器拒收而得到 401。`SESSION_COOKIE_SECURE=true` 在 localhost acceptance fixture 才讓真實瀏覽器保存並回送 cookie。
+- **偵測訊號**：登入回 201 且頁面導向正確，但後續 `GET /api/v1/me/courses` 仍回 401；backend request headers 沒有 Cookie。API/ UI host mismatch 與 insecure `__Host-` cookie 是可重現原因。
+- **預防規則**：real-browser fixture 的 UI origin 與 API base 使用同一 hostname；`__Host-` session/CSRF cookie 測試必須使用 Secure cookie，localhost 可作為瀏覽器安全例外。`SESSION_COOKIE_SECURE=false` 僅適合不執行瀏覽器 cookie jar 的 HTTP 測試。
+- **Tripwire**：在 acceptance harness 首次 browser login 後檢查後續受保護 GET 的 backend status 不得為 401；preflight 同時確認 API base hostname 等於 cookie fixture host，並以 real browser 而非 Node cookie jar 驗證。
+
+## Browser password form locators need exact labels when labels overlap
+
+- **失敗模式**：對 `新密碼` 使用 `getByLabel("新密碼")` 時，Playwright 將同名 label 與 `確認新密碼` 的包含匹配一起解析，strict mode 報 `resolved to 2 elements`。
+- **偵測訊號**：forced-password browser case 在真實頁面已正確導向 `/settings/password`，但第一次 fill 即因 strict-mode locator error 中止，並非產品流程錯誤。
+- **預防規則**：密碼表單含前綴相似 label 時使用 `getByLabel("新密碼", { exact: true })`；避免以包含匹配代替穩定的欄位語義。
+- **Tripwire**：任何新增或修改 ChangePasswordForm browser harness 先執行該 forced-password case；若錯誤出現在 `locator.fill` strict mode，先檢查 label exactness 再診斷產品行為。

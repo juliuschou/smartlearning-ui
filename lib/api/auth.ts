@@ -39,16 +39,16 @@ export function useLogin() {
 /**
  * Logout via `POST /api/v1/auth/logout` (Session + CSRF).
  *
- * On success we clear the entire query cache — the session query included —
- * so that browser back never resurfaces protected data that was cached while
- * authenticated. The caller then navigates (replace) to `/login`.
+ * On settle (success or failure) we clear the entire query cache — the session
+ * query included — so that browser back never resurfaces protected data that was
+ * cached while authenticated. The caller then navigates (replace) to `/login`.
  */
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation<null, ApiRequestError, void>({
     mutationFn: () =>
       apiRequest<null>("/auth/logout", { method: "POST", mutate: true }),
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.clear();
     },
   });

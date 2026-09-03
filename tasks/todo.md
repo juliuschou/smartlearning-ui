@@ -1328,3 +1328,49 @@ Backend working tree (uncommitted, on top of `305ec9b`) implements the three CP0
 ### Checkpoint disposition
 
 - CP4 完成並通過 static/unit/build 驗證。所有 CP0 凍結的負向 codes 皆可由 stable code 機器區分（backend e2e 已證實），無 BLOCKED 條件。依計畫「執行規則」，此處 **Hard stop**：等待使用者確認所有可建立的負向 fixture 後才進 CP5。未 commit、未 push、未勾 WBS。
+
+## 2026-09-04 — FE-4.1 CP5 Real-backend browser acceptance 與 closeout
+
+### Goal and acceptance criteria
+
+- [x] 新增 `test/browser/fe-4-1-entry-join.spec.ts`；runner 已能自動 discover，不需改 `test/browser/run.mjs`。
+- [x] 測試 fail closed、零 skip，使用隔離 fixture；UI/API 相同 hostname，真實 browser 接收 Secure `__Host-*` cookies；Origin 用 `request.allHeaders()` 驗證；任何建立／狀態變更皆可證明且 aggregate cleanup。
+- [x] 覆蓋：My Courses discovery、waiting/active entry、join request、server-ID navigation、snapshot states、terminal race、not-enrolled、wrong-role、disabled、expired session、cleanup。
+
+### What changed
+
+- **`test/browser/fe-4-1-entry-join.spec.ts`**（new）: 真實 backend Playwright spec。`assertFixturePreflight()` 在 `FE41_*` fixture 缺失時 throw BLOCKED（fail closed，永不 skip）。流程：
+  - **Discovery**：`GET /me/courses` 驗證 `currentJoinableSession` 為 `{ id, sessionCode, status: 'waiting' }`；My Courses 顯示「等候中課堂入口」。
+  - **Join**：`waitForRequest` 攔截 `POST /live-sessions/:sessionCode/join`，`assertMutationHeaders` 驗證 exact Origin + CSRF cookie echo，`assertRequestBodyKeys` 驗證 body `{}`；成功以 server-returned `liveSession.id` 導向 `/student/live/:id`。
+  - **Snapshot states**：waiting →（teacher start + open）→ active + open question（prompt/options/`尚未作答。`，無 teacher-only data、無作答控制）→（teacher close）→ closed terminal（`已結束` + 返回我的課程）。
+  - **Terminal race**：第二個 session 在 discovery 與 join 之間被 close，join 顯示 curated `此課堂目前無法加入。` + `重新整理課堂狀態`，不導頁。
+  - **Not-enrolled**：未加選學生直接造訪 learner route，顯示 `你尚未加選此課程，無法進入課堂。`，不洩漏 course data。
+  - **Wrong-role**：teacher cookie join → `403 FORBIDDEN`；teacher 造訪 learner route 被 student layout role gate 重導 login（`next` 保留）。
+  - **Disabled**：停用已加選學生後，participant snapshot 回 `401 AUTH_ACCOUNT_DISABLED`（在 API boundary 斷言，因 student layout 會先以 `/auth/session` 的 generic `UNAUTHORIZED` 重導，disabled UI state 無法可靠在 browser 呈現）。
+  - **Expired/missing**：無 cookie 的 fresh context 造訪 learner route 被重導 login（`next` 保留）。
+  - **Cleanup**：admin re-login（若中途關閉）→ archive 所有 course → disable 所有 account → logout 所有 context → close 所有 context；任何失敗累積 `cleanupErrors` 並在最後 throw。
+
+### How verified
+
+由 dedicated test subagent 執行並回傳結構化報告：
+
+- Targeted FE-4.1 tests（6 files）→ **PASS**（90/90；0 failed, 0 skipped）。
+- `npm test`（full）→ **PASS**（31 files / 257 tests；0 failed, 0 skipped）。
+- `npx next typegen` → **PASS**。
+- `npm run typecheck` → **PASS**（0 errors）。
+- `npm run lint:check` → **PASS**（0 errors；4 pre-existing warnings 全在 CP5 變更集之外：`AccountCreateForm.tsx` 1 + `fe-2-2-roster.spec.ts` 3）。
+- `npx prettier --check test/browser/fe-4-1-entry-join.spec.ts` → **PASS**。
+- `git diff --check` → **PASS**。
+- Browser spec discovery → **PASS**（`node test/browser/run.mjs --list` 自動 discover 5 files，含 `fe-4-1-entry-join.spec.ts`）。
+- **Real FE-4.1 Playwright spec → BLOCKED（fixtures 缺失，預期結果）**：`env` 顯示 0 個 `FE41_*` 變數，spec 在 `assertFixturePreflight` throw `FE-4.1 real-backend fixture BLOCKED: missing FE41_API_BASE, FE41_UI_ORIGIN, FE41_ADMIN_USERNAME, FE41_ADMIN_PASSWORD, FE41_COURSE_NAME_PREFIX`。**未宣稱 real-E2E pass**；spec 未對 live backend 執行。
+- 未 commit、未 push；未改 backend、DB、WBS、dependencies、`run.mjs`。
+
+### Scope / rollback
+
+- 變更僅限 FE-4.1 CP5 browser spec：`test/browser/fe-4-1-entry-join.spec.ts`（new）、`tasks/todo.md`。CP1/CP2/CP3/CP4 files 為先前已存在之工作樹變更，非本 CP 新增。
+- 未加入 polling/socket；未合成 token；未呼叫 teacher detail endpoint；未顯示 counts/teacher controls/correctness；未提供作答控制（FE-4.2）。
+- Rollback：僅移除 `test/browser/fe-4-1-entry-join.spec.ts` 與本 task-log section 即可，不影響已完成的 teacher FE-3.x 或 CP1/CP2/CP3/CP4。
+
+### Checkpoint disposition
+
+- CP5 實作與 static/unit/build/discovery 驗證完成。**Real-backend browser acceptance 維持 BLOCKED**（`FE41_*` fixtures 未提供、無 live backend/frontend），非 real-E2E 成功。依計畫「執行規則」，此處 **Hard stop**：等待使用者提供隔離 fixture 並授權執行真實 Playwright spec，或確認以 static 驗證作為 CP5 收尾。未 commit、未 push、未勾 WBS。

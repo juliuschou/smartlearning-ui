@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { ApiRequestError } from "@/lib/api/client";
 import { useJoinLiveSession } from "@/lib/api/participant-live-sessions";
+import {
+  isLearnerAccessError,
+  LearnerAccessState,
+} from "@/features/live-student/LearnerAccessState";
 import type { CurrentJoinableSession } from "@/lib/api/types";
 
 const ENTRY_LABELS: Record<CurrentJoinableSession["status"], string> = {
@@ -52,6 +56,10 @@ export function JoinLiveSessionButton({
   const isJoinableRace =
     join.error instanceof ApiRequestError &&
     join.error.code === "SESSION_NOT_JOINABLE";
+  // Access loss (not enrolled, removed, wrong role, disabled, expired) gets the
+  // specialized access state. Expired/missing sessions redirect to login.
+  const isAccessError =
+    join.error instanceof ApiRequestError && isLearnerAccessError(join.error);
 
   return (
     <div className="flex flex-col items-start gap-2">
@@ -63,7 +71,13 @@ export function JoinLiveSessionButton({
       >
         {join.isPending ? "加入中…" : label}
       </button>
-      {join.error ? (
+      {isAccessError && join.error instanceof ApiRequestError ? (
+        <LearnerAccessState
+          error={join.error}
+          id={`join-access-${session.id}`}
+          className="max-w-full"
+        />
+      ) : join.error ? (
         <ErrorAlert
           error={join.error}
           id={`join-error-${session.id}`}

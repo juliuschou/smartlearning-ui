@@ -7,6 +7,10 @@ import {
   useParticipantSnapshot,
   useStudentStatus,
 } from "@/lib/api/participant-live-sessions";
+import {
+  isLearnerAccessError,
+  LearnerAccessState,
+} from "@/features/live-student/LearnerAccessState";
 import type {
   LiveSessionStatus,
   ParticipantLiveSessionSnapshot,
@@ -56,13 +60,22 @@ export function LearnerLiveSessionView({
   if (isTerminal) {
     if (status.isLoading) return <LoadingState />;
     if (status.error) {
+      // Access loss on the lifecycle receipt (enrollment removed, disabled,
+      // expired, etc.) gets the specialized access state, not a generic alert.
+      if (status.error instanceof ApiRequestError) {
+        if (isLearnerAccessError(status.error)) {
+          return (
+            <LearnerAccessState
+              error={status.error}
+              id="learner-status-error"
+            />
+          );
+        }
+        return <ErrorAlert error={status.error} id="learner-status-error" />;
+      }
       return (
         <ErrorAlert
-          error={
-            status.error instanceof ApiRequestError
-              ? status.error
-              : { code: "INTERNAL_ERROR" }
-          }
+          error={{ code: "INTERNAL_ERROR" }}
           id="learner-status-error"
         />
       );
@@ -95,6 +108,16 @@ export function LearnerLiveSessionView({
   if (snapshot.error) {
     if (snapshot.error.status === 404) {
       return <NotFoundState />;
+    }
+    // Access loss (not enrolled, removed, wrong role, disabled, expired) gets
+    // the specialized access state. Expired/missing sessions redirect to login.
+    if (isLearnerAccessError(snapshot.error)) {
+      return (
+        <LearnerAccessState
+          error={snapshot.error}
+          id="learner-snapshot-error"
+        />
+      );
     }
     return <ErrorAlert error={snapshot.error} id="learner-snapshot-error" />;
   }

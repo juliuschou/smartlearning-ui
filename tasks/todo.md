@@ -1287,3 +1287,44 @@ Backend working tree (uncommitted, on top of `305ec9b`) implements the three CP0
 ### Checkpoint disposition
 
 - CP3 完成並通過 static/unit/build 驗證。依計畫「執行規則」，此處 **Hard stop**：等待使用者逐一確認 learner states 後才進 CP4。未 commit、未 push、未勾 WBS。
+
+## 2026-09-04 — FE-4.1 CP4 Not enrolled／disabled／forbidden 負向狀態
+
+### Goal and acceptance criteria
+
+- [x] 依 CP0 凍結的 stable codes，在 join 與 learner view 增加專屬 access state；抽出 `features/live-student/LearnerAccessState.tsx`。
+- [x] 更新 `lib/api/error-messages.ts`，只加入已凍結 codes。
+- [x] 保證：not enrolled 不洩漏 course/question data；wrong-role forbidden 不誤稱未加選；disabled 不與普通 expired/missing session 混淆；expired/missing session 以安全 `next` 導向 login；access loss 後不殘留舊 snapshot；raw backend message、IDs、Cookie、CSRF、token 永不顯示。
+- [x] 建立 status/code matrix tests，並以真實 fixture 分別驗證 active-but-unenrolled、removed enrollment、wrong role、disabled student、ordinary expired session、network/unknown error。錯誤元件使用穩定 ID，Playwright 不以不唯一的 `getByRole("alert")` 定位。
+
+### What changed
+
+- **`features/live-student/LearnerAccessState.tsx`**（new）: 專屬 learner access state。`isLearnerAccessError()` 以 CP0 凍結 codes（`ENROLLMENT_REQUIRED`/`ENROLLMENT_REMOVED`/`FORBIDDEN`/`AUTH_ACCOUNT_DISABLED`/`AUTH_SESSION_EXPIRED`/`UNAUTHORIZED`）分類；`AUTH_SESSION_EXPIRED`/`UNAUTHORIZED` 以 `useEffect` 安全 `next` 導向 login（`/login?next=<encoded pathname>`，US-F6 尊重），其餘渲染專屬 access UI（`帳號已停用` 或 `無法進入課堂` + `errorMessage(code)`）。永不渲染 raw message、IDs、Cookie、CSRF、token。接受穩定 `id` 供 browser test 定位。
+- **`features/live-student/LearnerLiveSessionView.tsx`**: snapshot 與 student-status 的 access-loss error 改走 `LearnerAccessState`（取代 generic `ErrorAlert`）；expired/missing 導向 login。
+- **`features/live-student/JoinLiveSessionButton.tsx`**: join 的 access-loss error 改走 `LearnerAccessState`（`join-access-<sessionId>`）；`SESSION_NOT_JOINABLE` race 維持 curated `ErrorAlert` + discovery refresh。
+- **`lib/api/error-messages.ts`**: 只新增凍結 codes — `ENROLLMENT_REQUIRED`（「你尚未加選此課程，無法進入課堂。」）、`ENROLLMENT_REMOVED`（「你的課程加選已被移除，無法進入課堂。」）、`AUTH_ACCOUNT_DISABLED`（「此帳號已停用，請聯絡管理員。」）。
+- **`test/learner-access-state.test.tsx`**（new, 8 tests）: `isLearnerAccessError` 分類（frozen vs non-access codes）、not-enrolled 無洩漏、removed、wrong-role 不誤稱、disabled 不與 expired 混淆、expired/missing 安全 `next` 導向 login。
+- **`test/learner-live-session-view.test.tsx`**（+7 tests）: snapshot ENROLLMENT_REQUIRED/REMOVED、FORBIDDEN 不誤稱、disabled 不混淆、expired/missing 導向 login、terminal student-status access loss。
+- **`test/my-courses-view.test.tsx`**（+5 tests）: join ENROLLMENT_REQUIRED/REMOVED、FORBIDDEN 不誤稱、disabled、expired 導向 login；既有 generic non-race error test 改為 `INTERNAL_ERROR`（因 `FORBIDDEN` 現已走 access state）。
+
+### How verified
+
+- `npm test -- test/learner-access-state.test.tsx test/learner-live-session-view.test.tsx test/my-courses-view.test.tsx` → **PASS**（3 files / 53 tests；0 failed, 0 skipped）。
+- `npm test`（full）→ **PASS**（31 files / 257 tests；0 failed, 0 skipped）。
+- `npx next typegen` → **PASS**。
+- `npm run typecheck` → **PASS**（0 errors）。
+- `npm run lint:check` → **PASS**（0 errors；4 pre-existing warnings 全在 CP4 變更集之外：`AccountCreateForm.tsx` 1 + `fe-2-2-roster.spec.ts` 3）。
+- `npx prettier --check`（7 CP4 files）→ **PASS**（先 `prettier --write` 4 個檔案後全綠）。
+- `npm run build` → **PASS**（Next.js 16.3.1 Turbopack；含 dynamic `/student/live/[liveSessionId]`）。
+- `git diff --check` → **PASS**。
+- 未 commit、未 push；未改 backend、DB、WBS、dependencies。
+
+### Scope / rollback
+
+- 變更僅限 FE-4.1 CP4 access-state 層：`features/live-student/LearnerAccessState.tsx`（new）、`features/live-student/LearnerLiveSessionView.tsx`、`features/live-student/JoinLiveSessionButton.tsx`、`lib/api/error-messages.ts`、`test/learner-access-state.test.tsx`（new）、`test/learner-live-session-view.test.tsx`、`test/my-courses-view.test.tsx`、`tasks/todo.md`。CP1/CP2/CP3 files 為先前已存在之工作樹變更，非本 CP 新增。
+- 未加入 polling/socket；未合成 token；未呼叫 teacher detail endpoint；未顯示 counts/teacher controls/correctness；未提供作答控制（FE-4.2）。
+- Rollback：僅撤回 CP4 access-state 檔案與對應 tests 即可，不影響已完成的 teacher FE-3.x 或 CP1/CP2/CP3 transport/entry/route。
+
+### Checkpoint disposition
+
+- CP4 完成並通過 static/unit/build 驗證。所有 CP0 凍結的負向 codes 皆可由 stable code 機器區分（backend e2e 已證實），無 BLOCKED 條件。依計畫「執行規則」，此處 **Hard stop**：等待使用者確認所有可建立的負向 fixture 後才進 CP5。未 commit、未 push、未勾 WBS。

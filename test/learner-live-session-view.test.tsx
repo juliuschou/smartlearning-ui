@@ -11,6 +11,13 @@ import type {
 
 const mocks = vi.hoisted(() => ({
   apiRequest: vi.fn(),
+  replace: vi.fn(),
+  pathname: "/student/live/session-1",
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mocks.replace }),
+  usePathname: () => mocks.pathname,
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -189,20 +196,126 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
   it("surfaces a curated error for a non-terminal snapshot error", async () => {
     apiRequestMock.mockRejectedValueOnce(
       new ApiRequestError(
+        { code: "INTERNAL_ERROR", message: "internal", blocking: true },
+        500,
+      ),
+    );
+    renderView();
+    // A non-access, non-terminal error falls back to the curated message for
+    // its stable code — never the raw backend message.
+    await waitFor(() =>
+      expect(
+        screen.getByText("伺服器發生問題，請稍後再試。"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("internal")).not.toBeInTheDocument();
+  });
+
+  it("renders a not-enrolled access state for a snapshot ENROLLMENT_REQUIRED", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
         { code: "ENROLLMENT_REQUIRED", message: "internal", blocking: true },
         403,
       ),
     );
     renderView();
-    // ENROLLMENT_REQUIRED is not yet mapped in CP3 (specialized negative-state
-    // copy lands in CP4), so it falls back to the generic curated message —
-    // never the raw backend message.
     await waitFor(() =>
       expect(
-        screen.getByText("發生未預期的錯誤，請稍後再試。"),
+        screen.getByText("你尚未加選此課程，無法進入課堂。"),
       ).toBeInTheDocument(),
     );
     expect(screen.queryByText("internal")).not.toBeInTheDocument();
+  });
+
+  it("renders a removed-enrollment access state for a snapshot ENROLLMENT_REMOVED", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "ENROLLMENT_REMOVED", message: "internal", blocking: true },
+        403,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByText("你的課程加選已被移除，無法進入課堂。"),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("renders a wrong-role forbidden state without mislabeling it as unenrolled", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "FORBIDDEN", message: "internal", blocking: true },
+        403,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("你沒有權限執行此操作。")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/尚未加選|加選已被移除/)).not.toBeInTheDocument();
+  });
+
+  it("renders a disabled-account state distinct from an expired session", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "AUTH_ACCOUNT_DISABLED", message: "internal", blocking: true },
+        401,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("帳號已停用")).toBeInTheDocument(),
+    );
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("redirects to login with a safe next on an expired snapshot session", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "AUTH_SESSION_EXPIRED", message: "internal", blocking: true },
+        401,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/login?next=%2Fstudent%2Flive%2Fsession-1",
+      ),
+    );
+  });
+
+  it("redirects to login with a safe next on a missing snapshot session", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "UNAUTHORIZED", message: "internal", blocking: true },
+        401,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/login?next=%2Fstudent%2Flive%2Fsession-1",
+      ),
+    );
+  });
+
+  it("renders an access state for a terminal student-status access loss", async () => {
+    // Snapshot rejects as terminal (SESSION_NOT_JOINABLE), then the
+    // student-status receipt reports enrollment removed.
+    apiRequestMock.mockRejectedValueOnce(terminalError());
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "ENROLLMENT_REMOVED", message: "internal", blocking: true },
+        403,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByText("你的課程加選已被移除，無法進入課堂。"),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("refetches the snapshot on manual refresh", async () => {
@@ -219,6 +332,113 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
     expect(apiRequestMock).toHaveBeenCalledWith(
       "/live-sessions/session-1/snapshot",
       { signal: expect.any(AbortSignal) },
+    );
+  });
+
+  it("renders a not-enrolled access state for a snapshot ENROLLMENT_REQUIRED", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "ENROLLMENT_REQUIRED", message: "internal", blocking: true },
+        403,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByText("你尚未加選此課程，無法進入課堂。"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("internal")).not.toBeInTheDocument();
+  });
+
+  it("renders a removed-enrollment access state for a snapshot ENROLLMENT_REMOVED", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "ENROLLMENT_REMOVED", message: "internal", blocking: true },
+        403,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByText("你的課程加選已被移除，無法進入課堂。"),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("renders a wrong-role forbidden state without mislabeling it as unenrolled", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "FORBIDDEN", message: "internal", blocking: true },
+        403,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("你沒有權限執行此操作。")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/尚未加選|加選已被移除/)).not.toBeInTheDocument();
+  });
+
+  it("renders a disabled-account state distinct from an expired session", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "AUTH_ACCOUNT_DISABLED", message: "internal", blocking: true },
+        401,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("帳號已停用")).toBeInTheDocument(),
+    );
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("redirects to login with a safe next on an expired snapshot session", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "AUTH_SESSION_EXPIRED", message: "internal", blocking: true },
+        401,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/login?next=%2Fstudent%2Flive%2Fsession-1",
+      ),
+    );
+  });
+
+  it("redirects to login with a safe next on a missing snapshot session", async () => {
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "UNAUTHORIZED", message: "internal", blocking: true },
+        401,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/login?next=%2Fstudent%2Flive%2Fsession-1",
+      ),
+    );
+  });
+
+  it("renders an access state for a terminal student-status access loss", async () => {
+    // Snapshot rejects as terminal (SESSION_NOT_JOINABLE), then the
+    // student-status receipt reports enrollment removed.
+    apiRequestMock.mockRejectedValueOnce(terminalError());
+    apiRequestMock.mockRejectedValueOnce(
+      new ApiRequestError(
+        { code: "ENROLLMENT_REMOVED", message: "internal", blocking: true },
+        403,
+      ),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(
+        screen.getByText("你的課程加選已被移除，無法進入課堂。"),
+      ).toBeInTheDocument(),
     );
   });
 

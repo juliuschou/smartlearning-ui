@@ -25,6 +25,10 @@ const MESSAGES: Record<string, string> = {
   // Enrollment roster (FE-2.2)
   COURSE_NOT_EDITABLE: "課程已封存，無法修改名冊。",
   VALIDATION_ERROR: "輸入內容不符合要求，請檢查欄位後再試一次。",
+  // Learner access (FE-4.1 CP4) — frozen codes only
+  ENROLLMENT_REQUIRED: "你尚未加選此課程，無法進入課堂。",
+  ENROLLMENT_REMOVED: "你的課程加選已被移除，無法進入課堂。",
+  AUTH_ACCOUNT_DISABLED: "此帳號已停用，請聯絡管理員。",
   // Live session (FE-3.1)
   SESSION_NOT_JOINABLE: "此課堂目前無法加入。",
   SESSION_QUESTION_NOT_OPEN: "此題目前未開放作答。",

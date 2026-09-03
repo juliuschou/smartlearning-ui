@@ -17,10 +17,12 @@ import { MyCoursesView } from "@/features/student/MyCoursesView";
 
 const navigationMocks = vi.hoisted(() => ({
   replace: vi.fn(),
+  pathname: "/student",
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => navigationMocks,
+  usePathname: () => navigationMocks.pathname,
 }));
 
 const mocks = vi.hoisted(() => ({
@@ -557,6 +559,90 @@ describe("MyCoursesView — FE-4.1 join entry (CP2)", () => {
       .mockRejectedValueOnce(
         new ApiRequestError(
           {
+            code: "INTERNAL_ERROR",
+            message: "internal server detail",
+            blocking: true,
+          },
+          500,
+        ),
+      );
+
+    const user = userEvent.setup();
+    renderView();
+
+    const entry = await screen.findByRole("button", { name: "進入課堂" });
+    await user.click(entry);
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("伺服器發生問題，請稍後再試。");
+    expect(error).not.toHaveTextContent("internal server detail");
+    expect(
+      screen.queryByRole("button", { name: "重新整理課堂狀態" }),
+    ).not.toBeInTheDocument();
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("renders a not-enrolled access state on a join ENROLLMENT_REQUIRED", async () => {
+    const { ApiRequestError } = await import("@/lib/api/client");
+    (apiRequest as unknown as Mock)
+      .mockResolvedValueOnce(myCoursesPage([activeCourse]))
+      .mockRejectedValueOnce(
+        new ApiRequestError(
+          {
+            code: "ENROLLMENT_REQUIRED",
+            message: "internal enrollment detail",
+            blocking: true,
+          },
+          403,
+        ),
+      );
+
+    const user = userEvent.setup();
+    renderView();
+
+    const entry = await screen.findByRole("button", { name: "進入課堂" });
+    await user.click(entry);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveAttribute("id", "join-access-session-active");
+    expect(alert).toHaveTextContent("你尚未加選此課程，無法進入課堂。");
+    expect(alert).not.toHaveTextContent("internal enrollment detail");
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("renders a removed-enrollment access state on a join ENROLLMENT_REMOVED", async () => {
+    const { ApiRequestError } = await import("@/lib/api/client");
+    (apiRequest as unknown as Mock)
+      .mockResolvedValueOnce(myCoursesPage([activeCourse]))
+      .mockRejectedValueOnce(
+        new ApiRequestError(
+          {
+            code: "ENROLLMENT_REMOVED",
+            message: "internal enrollment detail",
+            blocking: true,
+          },
+          403,
+        ),
+      );
+
+    const user = userEvent.setup();
+    renderView();
+
+    const entry = await screen.findByRole("button", { name: "進入課堂" });
+    await user.click(entry);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("你的課程加選已被移除，無法進入課堂。");
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("renders a wrong-role forbidden access state on a join FORBIDDEN", async () => {
+    const { ApiRequestError } = await import("@/lib/api/client");
+    (apiRequest as unknown as Mock)
+      .mockResolvedValueOnce(myCoursesPage([activeCourse]))
+      .mockRejectedValueOnce(
+        new ApiRequestError(
+          {
             code: "FORBIDDEN",
             message: "internal authorization detail",
             blocking: true,
@@ -571,12 +657,64 @@ describe("MyCoursesView — FE-4.1 join entry (CP2)", () => {
     const entry = await screen.findByRole("button", { name: "進入課堂" });
     await user.click(entry);
 
-    const error = await screen.findByRole("alert");
-    expect(error).toHaveTextContent("你沒有權限執行此操作。");
-    expect(error).not.toHaveTextContent("internal authorization detail");
-    expect(
-      screen.queryByRole("button", { name: "重新整理課堂狀態" }),
-    ).not.toBeInTheDocument();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("你沒有權限執行此操作。");
+    expect(screen.queryByText(/尚未加選|加選已被移除/)).not.toBeInTheDocument();
     expect(navigationMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("renders a disabled-account access state on a join AUTH_ACCOUNT_DISABLED", async () => {
+    const { ApiRequestError } = await import("@/lib/api/client");
+    (apiRequest as unknown as Mock)
+      .mockResolvedValueOnce(myCoursesPage([activeCourse]))
+      .mockRejectedValueOnce(
+        new ApiRequestError(
+          {
+            code: "AUTH_ACCOUNT_DISABLED",
+            message: "internal account detail",
+            blocking: true,
+          },
+          401,
+        ),
+      );
+
+    const user = userEvent.setup();
+    renderView();
+
+    const entry = await screen.findByRole("button", { name: "進入課堂" });
+    await user.click(entry);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("帳號已停用");
+    expect(alert).toHaveTextContent("此帳號已停用，請聯絡管理員。");
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("redirects to login with a safe next on a join expired session", async () => {
+    const { ApiRequestError } = await import("@/lib/api/client");
+    (apiRequest as unknown as Mock)
+      .mockResolvedValueOnce(myCoursesPage([activeCourse]))
+      .mockRejectedValueOnce(
+        new ApiRequestError(
+          {
+            code: "AUTH_SESSION_EXPIRED",
+            message: "internal session detail",
+            blocking: true,
+          },
+          401,
+        ),
+      );
+
+    const user = userEvent.setup();
+    renderView();
+
+    const entry = await screen.findByRole("button", { name: "進入課堂" });
+    await user.click(entry);
+
+    await waitFor(() =>
+      expect(navigationMocks.replace).toHaveBeenCalledWith(
+        "/login?next=%2Fstudent",
+      ),
+    );
   });
 });

@@ -1137,3 +1137,32 @@ Frontend must use stable codes and allowlisted projections only; it must not par
 - `git diff --check` → **PASS**.
 - `git diff --name-only` → confirms only `tasks/todo.md` is changed in the UI repository; no FE-4.1 product files, backend files, env, dependencies, or WBS files.
 - No commit or push; stop at CP0 pending backend completion of the terminal-snapshot/role-boundary contract and a fresh CP0 revalidation.
+
+## 2026-09-03 — FE-4.1 CP0 再驗證（backend 契約已補齊）
+
+### Revalidation result — CONTRACT READY / CP0 CLEAR
+
+Backend working tree (uncommitted, on top of `305ec9b`) implements the three CP0 blockers. Revalidation against the new contract:
+
+1. **Learner terminal snapshot states — RESOLVED.** New `GET /api/v1/live-sessions/:liveSessionId/student-status` returns an exact `{ id, status, startedAt, closedAt }` allowlist for **all four** lifecycle states (`waiting | active | closed | cancelled`) with HTTP 200. It is a read-only lifecycle receipt: `LiveSessionService.getStudentLiveSessionStatus()` reads only LiveSession/Course/Account/Enrollment locked rows, never touches Participant/Submission/ArchivedResult, and never creates a Participant (e2e asserts `participant.count === 0`). Terminal sessions stay readable after close-time anonymization. `startedAt`/`closedAt` are ISO-8601 or `null` (`waiting`/`cancelled` both null; `closed` both set).
+2. **Student-only role boundary — RESOLVED.** `AuthenticatedStudentSessionGuard` composes the participant-bound session classification (`canActivateForParticipant`, exposing `AUTH_ACCOUNT_DISABLED`) with the shared `StudentGuard`. It never resolves or accepts `X-Participant-Token`. Teacher/admin cookies → `403 FORBIDDEN`; anonymous → `401 UNAUTHORIZED`; expired → `401 AUTH_SESSION_EXPIRED`; disabled-account cookie → `401 AUTH_ACCOUNT_DISABLED`; missing/removed enrollment → `403 ENROLLMENT_REQUIRED` / `403 ENROLLMENT_REMOVED`; unknown session → `404 NOT_FOUND`; malformed UUID → `400`.
+3. **OpenAPI response assertions — RESOLVED.** `test/openapi.e2e-spec.ts` now asserts the `StudentLiveSessionStatusDto` schema: exact property set (`id,status,startedAt,closedAt`), `status` enum `[waiting,active,closed,cancelled]`, nullable timestamps, required fields, and the route's GET-only shape with the `200` success schema.
+
+### Contract boundary vs `/snapshot` (unchanged)
+
+`/snapshot` keeps its existing behavior: participant context on a terminal session still returns `409 SESSION_NOT_JOINABLE`; teacher/admin cookies still get the teacher projection. The new `/student-status` route is the FE-4.1 learner terminal-state source and returns no questions, results, counts, or watermark. Socket.IO handshake/reconnect rejection for terminal sessions is unchanged.
+
+### Revalidation verification (backend, on the new working tree)
+
+- `npm run typecheck` → **PASS** (no diagnostics).
+- `npm test -- --runInBand src/modules/live-sessions/application/student-session-status.spec.ts src/modules/participants/api/student-session.guard.spec.ts` → **PASS** (2 suites / 10 tests; 0 failed).
+- `npm run test:e2e -- --runInBand test/openapi.e2e-spec.ts` → **PASS** (1 suite / 4 tests; 0 failed). Non-fatal `LegacyRouteConverter` warnings only.
+- `npm run test:e2e -- --runInBand test/student-session-status.e2e-spec.ts` → **PASS** (1 suite / 8 tests; 0 failed, 30.1s) against the migrated `smartlearning_test` DB — covers active/waiting/closed/cancelled receipts, no-participant side effect, enrollment missing/removed, teacher/admin/anonymous/unknown/malformed rejection, disabled account, and expired session.
+- No runtime/DB mutation outside the isolated `smartlearning_test` fixture; no other DB touched.
+
+### Disposition
+
+- CP0 is now **CLEAR**. The three blocking clarifications are resolved with source, unit, OpenAPI, and DB-backed e2e evidence. FE-4.1 may proceed to CP1 (frontend transport + entry/join UI) against the frozen contract.
+- Frontend still must use stable codes and allowlisted projections only; it must not parse backend messages or infer access state from status heuristics. `MyCourseDto.currentJoinableSession` (discovery) and `GET /live-sessions/:id/student-status` (lifecycle receipt) are the two server-authoritative sources.
+- The backend working tree is **uncommitted**. Per the Option B convention, the backend contract should be committed before CP1 frontend work starts. No frontend product code was added in this revalidation.
+- Rollback is documentation-only for this checkpoint: remove this revalidation section if rejected. No frontend/backend source, runtime data, or migrations were changed by this revalidation.

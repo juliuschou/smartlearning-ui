@@ -129,4 +129,54 @@ describe("apiRequest transport boundary", () => {
     expect(init.headers).not.toHaveProperty("Origin");
     expect(init.headers).not.toHaveProperty("X-CSRF-Token");
   });
+
+  it("serializes an enrollment POST with credentials, Origin, CSRF, and 201 unwrap", async () => {
+    fetchMock.mockResolvedValueOnce(
+      successResponse({ id: "enrollment-1" }, 201),
+    );
+
+    await expect(
+      apiRequest<{ id: string }>("/courses/course-1/enrollments", {
+        method: "POST",
+        body: { studentAccountId: "student-1" },
+        mutate: true,
+      }),
+    ).resolves.toEqual({ id: "enrollment-1" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init).toMatchObject({
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({ studentAccountId: "student-1" }),
+    });
+    expect(init.headers).toMatchObject({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Origin: window.location.origin,
+      "X-CSRF-Token": "test-csrf-token",
+    });
+  });
+
+  it("sends a bodyless enrollment DELETE with credentials, Origin, CSRF, and null unwrap", async () => {
+    fetchMock.mockResolvedValueOnce(successResponse(null, 200));
+
+    await expect(
+      apiRequest<null>("/courses/course-1/enrollments/student-1", {
+        method: "DELETE",
+        mutate: true,
+      }),
+    ).resolves.toBeNull();
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init).toMatchObject({
+      method: "DELETE",
+      credentials: "include",
+      body: undefined,
+    });
+    expect(init.headers).toEqual({
+      Accept: "application/json",
+      Origin: window.location.origin,
+      "X-CSRF-Token": "test-csrf-token",
+    });
+  });
 });

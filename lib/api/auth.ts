@@ -31,6 +31,11 @@ export function useLogin() {
         mutate: false,
       }),
     onSuccess: (session) => {
+      // These course-scoped keys do not include the account identity. Remove
+      // them before seeding the new session so a fresh login cannot reuse a
+      // prior teacher/admin's roster or student-search data.
+      queryClient.removeQueries({ queryKey: queryKeys.enrollments.all });
+      queryClient.removeQueries({ queryKey: queryKeys.studentSearch.all });
       queryClient.removeQueries({ queryKey: queryKeys.myCourses.all });
       queryClient.setQueryData(queryKeys.session, session);
     },

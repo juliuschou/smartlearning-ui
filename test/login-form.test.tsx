@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LoginForm } from "@/features/auth/LoginForm";
+import { queryKeys } from "@/lib/api/query-keys";
 
 /**
  * US-F6 login form component tests.
@@ -108,6 +109,13 @@ describe("LoginForm — happy path", () => {
       data: [{ courseId: "previous-student-course" }],
       meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
     });
+    queryClient.setQueryData(queryKeys.enrollments.list("course-1", 1, 20), {
+      data: [{ id: "prior-roster-row" }],
+    });
+    queryClient.setQueryData(
+      queryKeys.studentSearch.list("course-1", "al", 1, 20),
+      { data: [{ id: "prior-search-row" }] },
+    );
     await user.type(screen.getByLabelText("帳號"), "alice");
     await user.type(screen.getByLabelText("密碼"), "a-valid-password");
     await user.click(screen.getByRole("button", { name: "登入" }));
@@ -115,6 +123,14 @@ describe("LoginForm — happy path", () => {
     await waitFor(() => expect(replace).toHaveBeenCalled());
     expect(
       queryClient.getQueryData(["my-courses", "list", 1, 20]),
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(queryKeys.enrollments.list("course-1", 1, 20)),
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(
+        queryKeys.studentSearch.list("course-1", "al", 1, 20),
+      ),
     ).toBeUndefined();
 
     // CSRF-exempt: mutate:false so no CSRF/Origin header path is taken.

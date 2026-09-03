@@ -21,4 +21,16 @@ export const queryKeys = {
     list: (page: number, pageSize: number) =>
       ["my-courses", "list", page, pageSize] as const,
   },
+  enrollments: {
+    all: ["enrollments"] as const,
+    course: (courseId: string) => ["enrollments", courseId] as const,
+    list: (courseId: string, page: number, pageSize: number) =>
+      ["enrollments", courseId, "list", page, pageSize] as const,
+  },
+  studentSearch: {
+    all: ["student-search"] as const,
+    course: (courseId: string) => ["student-search", courseId] as const,
+    list: (courseId: string, q: string, page: number, pageSize: number) =>
+      ["student-search", courseId, "list", q, page, pageSize] as const,
+  },
 } as const;

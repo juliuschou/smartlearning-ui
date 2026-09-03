@@ -140,6 +140,41 @@ export interface CreateCoursePayload {
   description?: string;
 }
 
+/** Enrollment lifecycle values returned by the course roster API. */
+export type EnrollmentStatus = "active" | "removed";
+
+/** Safe student projection embedded in an enrollment roster row. */
+export interface EnrollmentStudentDto {
+  id: string;
+  username: string;
+  displayName: string;
+}
+
+/** Course-roster enrollment projection returned to teacher/admin callers. */
+export interface EnrollmentDto {
+  id: string;
+  courseId: string;
+  studentAccountId: string;
+  status: EnrollmentStatus;
+  enrolledAt: string;
+  createdAt: string;
+  updatedAt: string;
+  student: EnrollmentStudentDto;
+}
+
+/** `POST /courses/:courseId/enrollments` request body. */
+export interface CreateEnrollmentPayload {
+  studentAccountId: string;
+}
+
+/** Student projection returned by the course-scoped search endpoint. */
+export interface StudentSearchResultDto {
+  id: string;
+  username: string;
+  displayName: string;
+  enrollmentStatus: EnrollmentStatus | null;
+}
+
 /**
  * `MyCourseDto` from `GET /me/courses` (envelope-unwrapped, inside `Page<T>`).
  * Guard: Session + StudentGuard. A student's active course roster projection.

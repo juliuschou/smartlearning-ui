@@ -801,3 +801,103 @@ CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, 
 - **FE-1.3.6 Real-backend browser smoke:** `npm run test:browser -- --workers=1 test/browser/fe-1-3-my-courses.spec.ts` passed 1 Chromium test with 0 skipped; aggregate fail-closed cleanup passed.
 - **WBS acceptance:** the user accepted the recorded CP4 real-browser result and authorized FE-1.3.1–FE-1.3.6 closeout. Only the corresponding six authoritative WBS checkboxes were updated; no BE-1/BE-2, QA-2.1, FE-2, backend, schema, or runtime acceptance was implied.
 - **Boundary retained:** the run used an isolated disposable FE13 environment and the existing task record as evidence; no new mutation run, mock/fallback, shared-data reset, or fixture teardown was performed for this documentation closeout.
+
+## 2026-09-03 — FE-2.1 Teacher Enrollment Roster Transport
+
+### Context and goal
+
+Implement the five frontend transport concerns for the teacher enrollment roster: course-scoped list/pagination, teacher/admin student search, add/reactivate, idempotent remove, and precise React Query invalidation. Extend the existing `apiRequest`, wire types, query-key factory, and React Query/Vitest patterns only; do not add a client, Route Handler, dependency, mock, or UI.
+
+### Acceptance criteria
+
+- [x] Course roster query preserves active and removed rows, server ordering, and pagination metadata; defaults to `page=1&pageSize=20`.
+- [x] Teacher/admin student-search query matches the frozen BE-2 contract, including normalization, pagination, projection, authorization, and membership semantics.
+- [x] Add sends only `{ studentAccountId }`, returns the server-authoritative `EnrollmentDto`, and does not optimistically insert or infer create/duplicate/reactivation from HTTP 201.
+- [x] Remove uses the exact bodyless DELETE contract, returns `null`, preserves removed roster rows, remains idempotent, and is not client-blocked for archived courses.
+- [x] Successful mutations invalidate only the affected course roster caches and the affected search root because search membership/projection is enrollment-dependent; failures preserve the original `ApiRequestError` and do not invalidate authoritative caches.
+- [x] Focused/static/full verification passes; FE-2.2 UI/browser work and WBS checkbox updates remain outside this slice until separately authorized.
+
+### Explicit exclusions
+
+- FE-2.2 roster UI, search debounce/combobox, confirmation dialog, accessibility, error copy, and browser acceptance.
+- Backend implementation, schema/migration changes, environment changes, mock/placeholder endpoints, Next.js Route Handlers, new HTTP clients, dependencies, and lockfiles.
+- Reuse of admin-only `GET /admin/accounts` for teacher student search.
+- WBS checkbox closure without complete frozen-contract evidence and explicit closeout authorization.
+
+### Checkpoint checklist
+
+- [x] CP0 — audit existing enrollment contracts and gate student-search contract.
+- [x] CP1 — record implementation checklist after CP0 is unblocked.
+- [x] CP2 — add frozen wire types and collision-free query keys.
+- [x] CP3 — add roster/search query options and hooks.
+- [x] CP4 — add enrollment mutations and targeted invalidation.
+- [x] CP5 — add focused transport and shared-client boundary tests.
+- [ ] CP6 — run verification, record results, and obtain explicit closeout authorization.
+
+### Risk & Rollback
+
+- **Risk: medium** — authenticated roster mutations, cache identity, and contract drift are the main risks; no schema or runtime data change is planned.
+- **Rollback:** revert only FE-2.1 types/keys/hooks/tests and this task record after implementation. No database, backend, or runtime rollback is needed. While CP0 is blocked, only this task record is changed.
+- **Safety:** do not optimistically rewrite server state, expose admin account fields through search, or run authenticated browser/database mutations for this transport-only slice.
+
+### Dependencies & Environment
+
+- Node 24+, Next.js 16.3.1, React 19, TanStack React Query 5, Vitest, and the existing `apiRequest` client.
+- Existing backend roster endpoints are available in the checked-out backend source/reference; BE-2 must formally freeze or add the dedicated teacher-accessible student-search contract before product implementation.
+- `lib/api/client.ts` already supplies credentials, Origin/CSRF, JSON serialization, envelope unwrapping, abort signals, and typed `ApiRequestError`; change it only if a direct boundary test proves a contract mismatch.
+
+### Working Notes
+
+- Existing roster contract: `GET /courses/:courseId/enrollments?page&pageSize` returns `Page<EnrollmentDto>`, includes active + removed, and orders `createdAt ASC, id ASC`.
+- Existing add contract: `POST /courses/:courseId/enrollments` with body `{ studentAccountId }` returns 201 `EnrollmentDto`; active duplicates return the existing row and removed rows reactivate.
+- Existing remove contract: `DELETE /courses/:courseId/enrollments/:studentAccountId` returns 200 with `data: null`, transitions status to `removed`, is idempotent, and remains allowed for archived courses.
+- Frontend must not filter removed rows, reorder server data, recompute pagination, or infer enrollment state from HTTP status.
+- Future implementation must preserve existing `useMyCourses` behavior and use a course parent key so every page for one course can be invalidated without touching other courses.
+
+### CP0 Results — BLOCKED-CONTRACT (2026-09-03)
+
+- **Baseline:** UI branch `docs/tasks-us-f0-cp1-disposition`, HEAD `f7791035217ae6ec57d9285467dc5a73237b3a54`; working tree was clean before this task-record update.
+- **Confirmed backend evidence:** `smartLearning-backend/src/modules/enrollments/api/enrollments.controller.ts` exposes the roster GET/POST/DELETE routes and status decorators; `.../api/dto/enrollment.dto.ts` defines `EnrollmentDto`, `EnrollmentStudentDto`, and the add payload; `.../application/enrollment.service.ts` confirms owner/admin access, active+removed listing, `createdAt ASC, id ASC`, duplicate/reactivation, idempotent removal, and archived removal behavior; `smartLearning-backend/docs/frontend-api-reference.md:380-385` documents the same three enrollment routes and semantics.
+- **Blocking finding:** no dedicated teacher-accessible student-search controller, DTO, OpenAPI path, or frontend API-reference entry exists in the checked-out backend/reference. The WBS still leaves BE-2 contract-freeze work unchecked and states FE-2 depends on BE-2. `GET /admin/accounts` is admin-only, has different authorization, and exposes admin account fields, so it is not an acceptable substitute.
+- **Required BE-2 freeze:** define the search path/scope, query name and trim/case/matching rules, empty/minimum behavior, pagination and deterministic ordering, disabled/non-student and active/removed membership filtering, minimal projection, owner/admin/non-owner/student/unauthenticated and archived semantics, stable errors, and whether add/remove changes search membership or projection (invalidation consequence).
+- **Disposition:** **BLOCKED-CONTRACT**. No product source, types, query keys, hooks, tests, backend files, WBS checkboxes, dependencies, mocks, placeholders, or runtime/database state were changed. CP1–CP6 remain pending; FE-2.1 is not complete.
+- **Next action:** obtain the frozen BE-2 student-search contract and explicit authorization to continue past CP0. Until then, do not start CP1 implementation or claim FE-2.1 closeout.
+
+### CP0 verification
+
+- Read-only route/DTO/service/reference/WBS inspection confirmed the original disposition above.
+- User-provided frozen contract superseded the CP0 blocker: `GET /courses/:courseId/students/search?q&page&pageSize` is course-scoped, owner/admin readable (including archived courses), normalized with NFC + trim, constrained to 2–100 Unicode code points, and returns `StudentSearchResultDto` with course-relative `enrollmentStatus`.
+- CP0 was reopened and unblocked for CP1–CP5 implementation; the original read-only scope statement applies only to the blocked pre-implementation attempt.
+
+### CP1–CP5 Results — implementation and focused evidence (2026-09-03)
+
+- **CP1/CP2:** added frozen enrollment/search wire types and collision-free course-scoped query-key hierarchies. `EnrollmentDto` preserves active/removed status and the safe nested student projection; search preserves only the approved fields plus nullable course-relative `enrollmentStatus`.
+- **CP3:** added `courseEnrollmentsQueryOptions`/`useCourseEnrollments` and `studentSearchQueryOptions`/`useStudentSearch`. Both use explicit URLSearchParams, forward `AbortSignal`, set `retry:false` and `staleTime:30_000`, and gate teacher/admin sessions. Search shares NFC+trim normalization between URL and key and disables empty/short/overlong terms.
+- **CP4:** added `useAddEnrollment` and `useRemoveEnrollment`. Add sends only `{ studentAccountId }`; remove sends bodyless DELETE and returns `null`; neither performs optimistic cache edits. Successful mutations invalidate only the target course roster parent and target course search parent because search includes enrollment-dependent status. Failures preserve the original `ApiRequestError` and do not invalidate.
+- **CP5 focused tests:** `test/enrollments-api.test.tsx` now covers roster/search pagination, gates, signal/no-retry/error identity, Unicode normalization/encoding, server projection/order/meta preservation, exact mutation boundaries, no optimistic edits, archived-removal non-blocking, and target-only invalidation. `test/api-client.test.ts` covers POST 201 and bodyless DELETE 200 envelope boundaries with credentials, Origin, CSRF, and JSON semantics.
+
+### Verification and scope
+
+- `npm test -- test/enrollments-api.test.tsx test/api-client.test.ts test/login-form.test.tsx` → PASS (3 files / 45 tests; includes new login cache-clearance and role-gate regression tests).
+- `npx next typegen` → PASS.
+- `npm run typecheck` → PASS (0 diagnostics).
+- `npm run lint:check` → PASS (0 errors; one pre-existing React Compiler warning at `features/admin/AccountCreateForm.tsx:68`).
+- `npm test` → PASS (19 files / 138 tests).
+- `npm run build` → PASS (Next.js production build and static generation).
+- `npx prettier --check lib/api/auth.ts lib/api/enrollments.ts lib/api/types.ts lib/api/query-keys.ts test/enrollments-api.test.tsx test/api-client.test.ts test/login-form.test.tsx tasks/todo.md` → PASS.
+- `git diff --check` → PASS (both repositories).
+- Final changed-file scope is limited to `lib/api/types.ts`, `lib/api/query-keys.ts`, `lib/api/enrollments.ts`, `lib/api/auth.ts`, `test/enrollments-api.test.tsx`, `test/api-client.test.ts`, `test/login-form.test.tsx`, and this task record. No routes/features/client/dependencies/env/browser/WBS files changed; no commit was created.
+
+### CP6 review hardening (2026-09-03)
+
+Review findings were triaged and the following fixes landed before closeout:
+
+- **Cross-account cache leak (high):** `useLogin` now removes the `enrollments` and `studentSearch` roots in addition to `myCourses` so a new login cannot reuse a prior account's roster/search cache; regression-asserted in `test/login-form.test.tsx`.
+- **Stale authorized data (high):** `useCourseEnrollments`/`useStudentSearch` now conceal cached `data` when the teacher/admin role gate closes (React Query retains data on `enabled:false`); regression-asserted in `test/enrollments-api.test.tsx`.
+- **Typed query errors (medium):** both new `queryOptions` carry the `ApiRequestError` error generic so `query.error` is typed for FE-2.2 without casts.
+- **Mutation refetch race (medium):** `invalidateCourseEnrollmentCaches` awaits `Promise.all` of both invalidations, and both mutation `onSuccess` callbacks await it, so `mutateAsync` no longer resolves before active roster/search refetches.
+- **Test conventions:** removed the `as never` cast in the mutation boundary test (structural `Object.assign` instead).
+
+### CP6 disposition
+
+- **Implementation/static verification complete.** FE-2.2 UI/browser work, backend changes, and WBS checkbox closure remain outside this request and are not claimed.

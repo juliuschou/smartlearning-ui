@@ -900,4 +900,6 @@ Review findings were triaged and the following fixes landed before closeout:
 
 ### CP6 disposition
 
-- **Implementation/static verification complete.** FE-2.2 UI/browser work, backend changes, and WBS checkbox closure remain outside this request and are not claimed.
+- **Implementation/static verification complete.** FE-2.2 UI/browser work and WBS checkbox closure remain outside this request and are not claimed.
+- **Committed:** UI commit `025e794` (`feat(api): complete FE-2.1 enrollment roster transport`) on `docs/tasks-us-f0-cp1-disposition`; backend commit `1c38d9c` (`feat(enrollments): add teacher student-search contract (BE-2)`) on backend `main`. Backend `tasks/todo.md` record intentionally left uncommitted with the working tree.
+- FE-2.1 transport items are complete against the frozen BE-2 contract; authoritative WBS checkboxes remain unchecked pending explicit closeout authorization.

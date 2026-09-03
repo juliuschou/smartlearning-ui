@@ -39,4 +39,14 @@ export const queryKeys = {
     results: (id: string, sessionQuestionId: string) =>
       ["live-sessions", id, "results", sessionQuestionId] as const,
   },
+  // FE-4.1 — participant (learner) transport. Deliberately separate from the
+  // teacher `liveSessions` namespace so a learner snapshot can never collide
+  // with the teacher detail projection in the cache.
+  participantLiveSessions: {
+    all: ["participant-live-sessions"] as const,
+    snapshot: (id: string) =>
+      ["participant-live-sessions", id, "snapshot"] as const,
+    studentStatus: (id: string) =>
+      ["participant-live-sessions", id, "student-status"] as const,
+  },
 } as const;

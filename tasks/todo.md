@@ -1166,3 +1166,124 @@ Backend working tree (uncommitted, on top of `305ec9b`) implements the three CP0
 - Frontend still must use stable codes and allowlisted projections only; it must not parse backend messages or infer access state from status heuristics. `MyCourseDto.currentJoinableSession` (discovery) and `GET /live-sessions/:id/student-status` (lifecycle receipt) are the two server-authoritative sources.
 - The backend working tree is **uncommitted**. Per the Option B convention, the backend contract should be committed before CP1 frontend work starts. No frontend product code was added in this revalidation.
 - Rollback is documentation-only for this checkpoint: remove this revalidation section if rejected. No frontend/backend source, runtime data, or migrations were changed by this revalidation.
+
+## 2026-09-04 — FE-4.1 CP1 Typed transport 與 cache 隔離
+
+### Goal and acceptance criteria
+
+- [x] `lib/api/types.ts` 加入凍結後的 discovery projection、join response、participant snapshot／question projection。
+- [x] `lib/api/query-keys.ts` 增加獨立 participant namespace（`participantLiveSessions.snapshot(id)` / `studentStatus(id)`），不重用 teacher `liveSessions.detail(id)`。
+- [x] 新增 `lib/api/participant-live-sessions.ts`：Cookie join mutation（`trim().toUpperCase()`、encode path segment、body `{}`、`mutate: true`）、learner snapshot query（Cookie GET、forward abort signal、`retry: false`、無 ID 時 disabled）、student-status lifecycle receipt query。
+- [x] 不儲存或合成 participant token；join response 不做假 seed；不加入 polling 或 Socket.IO。
+- [x] 調整 `lib/api/enrollments.ts` 對 discovery projection 的型別傳輸，保持 backend pagination/order 原樣。
+- [x] 新增／擴充 transport tests，證明 request、normalization、response preservation、cache separation、失敗時無 optimistic state。
+
+### What changed
+
+- **`lib/api/types.ts`**: 新增 `CurrentJoinableSession`（`id`/`sessionCode`/`status: waiting | active`）、`MyCourseDto.currentJoinableSession: CurrentJoinableSession | null`（required，nullable）、`JoinLiveSessionResponse`（`participantToken: null` + server-authoritative `liveSession`）、`ParticipantLiveSessionSnapshot`（participant-safe，無 `questionSelections`/counts/teacher controls）、`StudentLiveSessionStatus`（四態 lifecycle receipt）。
+- **`lib/api/query-keys.ts`**: 新增 `participantLiveSessions` namespace（`all`/`snapshot(id)`/`studentStatus(id)`），與 teacher `liveSessions` 完全分離。
+- **`lib/api/participant-live-sessions.ts`**（new）: `normalizeSessionCode`（trim+uppercase）、`encodeSessionCodePath`（encodeURIComponent）、`useJoinLiveSession`（body `{}`、`mutate: true`）、`participantSnapshotQueryOptions`/`useParticipantSnapshot`、`studentStatusQueryOptions`/`useStudentStatus`。無 token 合成、無假 seed、無 polling/socket。
+- **`lib/api/enrollments.ts`**: 僅更新 doc comment 標註 discovery projection 隨 paginated response 傳輸；transport 本身不變（`Page<MyCourseDto>` 原樣）。
+- **`test/participant-live-sessions-api.test.tsx`**（new）: 10 tests — normalization、join request shape（body `{}` + CSRF/Origin）、join 失敗無 optimistic state、snapshot cookie GET + response preservation + 無 teacher-only fields、empty-id disabled、error identity、student-status 四態、cache separation（participant key ≠ teacher detail key）。
+- **`test/enrollments-api.test.tsx`**: 新增 discovery projection 傳輸 test（active/null per row、pagination/order 不變）；fixture 補 `currentJoinableSession: null`。
+- **`test/my-courses-view.test.tsx`**: fixture 補 `currentJoinableSession: null`（保持契約準確）。
+
+### How verified
+
+- `npm test -- test/participant-live-sessions-api.test.tsx test/enrollments-api.test.tsx` → **PASS**（2 files / 36 tests；0 failed, 0 skipped）。
+- `npx next typegen` → **PASS**（types generated）。
+- `npm run typecheck` → **PASS**（0 errors）。
+- `npm run lint:check` → **PASS**（0 errors；4 pre-existing warnings 全在 FE-4.1 變更集之外：`AccountCreateForm.tsx` 1 + `fe-2-2-roster.spec.ts` 3）。
+- `npx prettier --check`（7 changed files）→ **PASS**（先 `prettier --write` 3 個新/改檔案後全綠）。
+- `git diff --check` → **PASS**。
+- 未 commit、未 push；未改 backend、DB、WBS、dependencies。
+
+### Scope / rollback
+
+- 變更僅限 FE-4.1 CP1 transport 層：`lib/api/types.ts`、`lib/api/query-keys.ts`、`lib/api/enrollments.ts`、`lib/api/participant-live-sessions.ts`（new）、`test/participant-live-sessions-api.test.tsx`（new）、`test/enrollments-api.test.tsx`、`test/my-courses-view.test.tsx`、`tasks/todo.md`。
+- 未加入可見 UI（CP2 才做）；未加入 polling/socket；未合成 token。
+- Rollback：僅撤回上述 transport/key/test 檔案即可，不影響已完成的 teacher FE-3.x。
+
+### Checkpoint disposition
+
+- CP1 完成。依計畫「執行規則」，此處 **Hard stop**：等待使用者確認 transport/cache boundary 後才進 CP2。未 commit、未 push、未勾 WBS。
+
+## 2026-09-04 — FE-4.1 CP2 「我的課程」真實 Entry UI
+
+### Goal and acceptance criteria
+
+- [x] 僅依 backend discovery projection 顯示動作：`null` 無按鈕、`waiting` 等候中課堂入口、`active` 進入課堂、非預期 terminal status fail closed。
+- [x] 點擊後以 discovery 的 `sessionCode` 呼叫 CP1 join；row-local pending、避免 double submit；成功只使用 response 的 `liveSession.id` 導向 `/student/live/:id`。
+- [x] `SESSION_NOT_JOINABLE` race 留在 My Courses 顯示 curated inline error，並提供刷新 discovery；不顯示 raw backend message。
+- [x] 保持既有 loading／empty／error／pagination 行為不變。
+- [x] 擴充 `test/my-courses-view.test.tsx`：null/waiting/active/invalid discovery、pending、duplicate click、server-returned ID navigation、409 race、安全錯誤文字，以及既有分頁回歸。
+
+### What changed
+
+- **`features/live-student/JoinLiveSessionButton.tsx`**（new）: row-local join control。僅依 discovery projection 渲染：`waiting` → 「等候中課堂入口」、`active` → 「進入課堂」、任何非預期/terminal status **fail closed**（不渲染入口）。點擊以 discovery `sessionCode` 呼叫 CP1 `useJoinLiveSession`；成功以 server-returned `liveSession.id` 導向 `/student/live/:id`。row-local pending + double-submit guard（`if (join.isPending) return`）。`SESSION_NOT_JOINABLE` race → curated `ErrorAlert`（「此課堂目前無法加入。」）+ 「重新整理課堂狀態」按鈕呼叫 discovery refresh；raw backend message 永不顯示。
+- **`features/student/MyCoursesView.tsx`**: `CourseCard` 在 `currentJoinableSession` 非 null 時渲染 `JoinLiveSessionButton`，並傳入 `onRefreshDiscovery={() => void refetch()}`（來自 `useMyCourses`）。loading/empty/error/pagination 行為不變。
+- **`test/my-courses-view.test.tsx`**: 新增 8 tests — null discovery（無按鈕）、waiting entry、active entry、invalid/terminal status fail closed、join + server-ID navigation、pending + duplicate-click guard、409 race + refresh、非 race 錯誤（無 refresh link、安全文字）。既有分頁/收縮/empty/error/gating 回歸維持。
+
+### How verified
+
+- `npm test -- test/my-courses-view.test.tsx test/participant-live-sessions-api.test.tsx` → **PASS**（2 files / 25 tests；0 failed, 0 skipped）。
+- `npx next typegen` → **PASS**（types generated）。
+- `npm run typecheck` → **PASS**（0 errors）。
+- `npm run lint:check` → **PASS**（0 errors；4 pre-existing warnings 全在 CP2 變更集之外：`AccountCreateForm.tsx` 1 + `fe-2-2-roster.spec.ts` 3）。
+- `npx prettier --check`（3 CP2 files）→ **PASS**。
+- `git diff --check` → **PASS**。
+- `npm test`（full）→ **PASS**（28 files / 218 tests；0 failed, 0 skipped）。
+- `npm run build` → **PASS**（Next.js 16.3.1 Turbopack；13 routes，12/12 static pages）。
+- 未 commit、未 push；未改 backend、DB、WBS、dependencies。
+
+### Scope / rollback
+
+- 變更僅限 FE-4.1 CP2 entry UI 層：`features/live-student/JoinLiveSessionButton.tsx`（new）、`features/student/MyCoursesView.tsx`、`test/my-courses-view.test.tsx`、`tasks/todo.md`。CP1 transport files（`lib/api/types.ts`、`query-keys.ts`、`enrollments.ts`、`participant-live-sessions.ts`、`test/participant-live-sessions-api.test.tsx`、`test/enrollments-api.test.tsx`）為先前 CP1 已存在之工作樹變更，非本 CP 新增。
+- 未加入 polling/socket；未合成 token；未新增 route（CP3 才做 learner route）。
+- Rollback：僅撤回 `JoinLiveSessionButton.tsx`、`MyCoursesView.tsx` 的 entry 改動與對應 tests 即可，不影響已完成的 teacher FE-3.x 或 CP1 transport。
+
+### Checkpoint disposition
+
+- CP2 完成並通過 static/unit/build 驗證。依計畫「執行規則」，此處 **Hard stop**：等待使用者確認可見 entry slice 後才進 CP3。未 commit、未 push、未勾 WBS。
+
+## 2026-09-04 — FE-4.1 CP3 Learner snapshot route 與 session states
+
+### Goal and acceptance criteria
+
+- [x] 新增 `app/(student)/student/live/[liveSessionId]/page.tsx`、`loading.tsx`、`error.tsx`；只有 frozen contract 存在真正 404 語義時才加 `not-found.tsx`。
+- [x] 新增 `features/live-student/LearnerLiveSessionView.tsx`，只使用 participant snapshot hook/type。
+- [x] 依 `snapshot.status` 渲染，不能以空 question array 推斷狀態：`waiting`／`active`+無 open question／`active`+open question（participant-safe prompt/options/hasSubmitted，無作答控制）／`closed`／`cancelled`。
+- [x] 因 realtime 屬 FE-4.3，只提供明確「更新課堂狀態」refetch，不做自動 polling，也不暗示即時更新。
+- [x] 不呼叫 teacher detail endpoint、不顯示 counts、teacher controls、未揭露 correctness。
+- [x] 新增 learner view/route tests：loading、waiting、active between questions、active open question、closed、cancelled、manual refresh、route param passthrough、無 socket/作答/teacher-only projection。
+
+### What changed
+
+- **`app/(student)/student/live/[liveSessionId]/page.tsx`**（new）: Server Component shell，`params: Promise<{ liveSessionId }>`，回我的課程 back link + heading，掛載 `LearnerLiveSessionView`。受既有 `(student)` layout 的 session/role/mustChangePassword gate 保護。
+- **`loading.tsx`**（new）: `role="status"` loading boundary。
+- **`error.tsx`**（new）: route-local unexpected-error boundary（curated copy + retry）。**未加 `not-found.tsx`**：snapshot 的 404 是預期 API 錯誤，依 Next.js 16 gate 在 feature UI 內以 `NotFoundState` 處理，非 route-level not-found。
+- **`features/live-student/LearnerLiveSessionView.tsx`**（new）: 只從 `useParticipantSnapshot` 渲染。因 snapshot endpoint 對 terminal session 回 `409 SESSION_NOT_JOINABLE`，terminal 時 fallback 到 `useStudentStatus`（CP0 確認的 learner terminal-state source）區分 `closed`/`cancelled`。`LiveState` 依 `snapshot.status` 分支（非空 question array）：`waiting`→等待老師開始、`active`+無 open question→等待老師開題、`active`+open question→participant-safe prompt/options/hasSubmitted（無作答控制）。`TerminalState` 唯讀 + 返回我的課程。唯一 refresh 是「更新課堂狀態」refetch；無 polling/socket/realtime 宣稱。無 teacher-only data（counts/controls/correctness）。
+- **`test/learner-live-session-view.test.tsx`**（new, 11 tests）: loading、waiting、active between questions、active open question、hasSubmitted、closed（via student-status）、cancelled、404 not-found、非 terminal error（curated generic，raw message 不顯示）、manual refresh、無 teacher-only data/作答控制。
+- **`test/learner-live-route.test.tsx`**（new, 1 test）: route shell + `liveSessionId` passthrough。
+
+### How verified
+
+- `npm test -- test/learner-live-session-view.test.tsx test/learner-live-route.test.tsx` → **PASS**（2 files / 12 tests；0 failed, 0 skipped）。
+- `npx next typegen` → **PASS**（types generated，含 `/student/live/[liveSessionId]`）。
+- `npm run typecheck` → **PASS**（0 errors）。
+- `npm run lint:check` → **PASS**（0 errors；4 pre-existing warnings 全在 CP3 變更集之外：`AccountCreateForm.tsx` 1 + `fe-2-2-roster.spec.ts` 3）。
+- `npx prettier --check`（5 CP3 files）→ **PASS**（先 `prettier --write` 2 個新檔案後全綠）。
+- `git diff --check` → **PASS**。
+- `npm test`（full）→ **PASS**（30 files / 230 tests；0 failed, 0 skipped）。
+- `npm run build` → **PASS**（Next.js 16.3.1 Turbopack；14 routes，含新 dynamic `/student/live/[liveSessionId]`）。
+- 未 commit、未 push；未改 backend、DB、WBS、dependencies。
+
+### Scope / rollback
+
+- 變更僅限 FE-4.1 CP3 learner route/feature 層：`app/(student)/student/live/[liveSessionId]/{page,loading,error}.tsx`（new）、`features/live-student/LearnerLiveSessionView.tsx`（new）、`test/learner-live-session-view.test.tsx`（new）、`test/learner-live-route.test.tsx`（new）、`tasks/todo.md`。CP1/CP2 files（`lib/api/types.ts`、`query-keys.ts`、`enrollments.ts`、`participant-live-sessions.ts`、`features/live-student/JoinLiveSessionButton.tsx`、`features/student/MyCoursesView.tsx`、`test/participant-live-sessions-api.test.tsx`、`test/enrollments-api.test.tsx`、`test/my-courses-view.test.tsx`）為先前 CP1/CP2 已存在之工作樹變更，非本 CP 新增。
+- 未加入 polling/socket；未合成 token；未呼叫 teacher detail endpoint；未顯示 counts/teacher controls/correctness；未提供作答控制（FE-4.2）。
+- Rollback：僅撤回 CP3 route/feature/test 檔案即可，不影響已完成的 teacher FE-3.x 或 CP1/CP2 transport/entry。
+
+### Checkpoint disposition
+
+- CP3 完成並通過 static/unit/build 驗證。依計畫「執行規則」，此處 **Hard stop**：等待使用者逐一確認 learner states 後才進 CP4。未 commit、未 push、未勾 WBS。

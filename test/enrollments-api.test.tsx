@@ -91,6 +91,7 @@ const course: MyCourseDto = {
   enrolledAt: "2026-09-01T00:00:00.000Z",
   createdAt: "2026-08-01T00:00:00.000Z",
   updatedAt: "2026-08-01T00:00:00.000Z",
+  currentJoinableSession: null,
 };
 
 beforeEach(() => {
@@ -186,6 +187,42 @@ describe("My courses transport hooks", () => {
       status: 429,
       field: "username",
       retryAfterSeconds: 12,
+    });
+  });
+
+  it("transports the nullable currentJoinableSession discovery projection per row", async () => {
+    const withSession = {
+      ...course,
+      currentJoinableSession: {
+        id: "session-1",
+        sessionCode: "ABCD12",
+        status: "active" as const,
+      },
+    };
+    const withoutSession = { ...course, courseId: "course-2" };
+    apiRequestMock.mockResolvedValueOnce(
+      myCoursesPage([withSession, withoutSession]),
+    );
+
+    const queryClient = makeQueryClient();
+    const { result } = renderHook(() => useMyCourses(), {
+      wrapper: wrapperFor(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.courses).toHaveLength(2));
+
+    expect(result.current.courses[0].currentJoinableSession).toEqual({
+      id: "session-1",
+      sessionCode: "ABCD12",
+      status: "active",
+    });
+    expect(result.current.courses[1].currentJoinableSession).toBeNull();
+    // Pagination/order are preserved unchanged.
+    expect(result.current.meta).toEqual({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      totalPages: 1,
     });
   });
 });

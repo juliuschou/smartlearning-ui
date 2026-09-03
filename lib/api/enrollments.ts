@@ -39,6 +39,10 @@ function normalizeMyCoursesParams({
  * session role is `student`, avoiding a guaranteed 403 for admin/teacher
  * sessions. The hook still returns the query object so callers can render
  * loading/error states uniformly.
+ *
+ * FE-4.1: each row carries the nullable `currentJoinableSession` discovery
+ * projection. It rides on the existing paginated response; pagination/order
+ * are unchanged.
  */
 export function myCoursesQueryOptions(params: MyCoursesParams = {}) {
   const { page, pageSize } = normalizeMyCoursesParams(params);

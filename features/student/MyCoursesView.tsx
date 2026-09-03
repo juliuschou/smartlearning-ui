@@ -6,6 +6,7 @@ import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { useSession } from "@/lib/auth/session";
 import { useMyCourses } from "@/lib/api/enrollments";
 import { queryKeys } from "@/lib/api/query-keys";
+import { JoinLiveSessionButton } from "@/features/live-student/JoinLiveSessionButton";
 import type { CourseStatus, MyCourseDto } from "@/lib/api/types";
 
 const PAGE_SIZE = 20;
@@ -36,7 +37,7 @@ export function MyCoursesView() {
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const { courses, meta, isLoading, error } = useMyCourses({
+  const { courses, meta, isLoading, error, refetch } = useMyCourses({
     page,
     pageSize: PAGE_SIZE,
   });
@@ -106,7 +107,10 @@ export function MyCoursesView() {
       <ul className="space-y-3" aria-label="我的課程列表">
         {courses.map((course) => (
           <li key={course.courseId}>
-            <CourseCard course={course} />
+            <CourseCard
+              course={course}
+              onRefreshDiscovery={() => void refetch()}
+            />
           </li>
         ))}
       </ul>
@@ -145,7 +149,13 @@ export function MyCoursesView() {
   );
 }
 
-function CourseCard({ course }: { course: MyCourseDto }) {
+function CourseCard({
+  course,
+  onRefreshDiscovery,
+}: {
+  course: MyCourseDto;
+  onRefreshDiscovery: () => void;
+}) {
   return (
     <article className="min-w-0 rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800">
       <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -167,6 +177,14 @@ function CourseCard({ course }: { course: MyCourseDto }) {
           {formatEnrolledAt(course.enrolledAt)}
         </time>
       </p>
+      {course.currentJoinableSession ? (
+        <div className="mt-3">
+          <JoinLiveSessionButton
+            session={course.currentJoinableSession}
+            onRefreshDiscovery={onRefreshDiscovery}
+          />
+        </div>
+      ) : null}
     </article>
   );
 }

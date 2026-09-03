@@ -176,8 +176,21 @@ export interface StudentSearchResultDto {
 }
 
 /**
+ * Minimal current classroom projection for student course discovery (FE-4.1).
+ * Only `waiting | active` sessions are ever advertised; terminal/unknown
+ * statuses are excluded server-side. `null` means no joinable session.
+ */
+export interface CurrentJoinableSession {
+  id: string;
+  sessionCode: string;
+  status: "waiting" | "active";
+}
+
+/**
  * `MyCourseDto` from `GET /me/courses` (envelope-unwrapped, inside `Page<T>`).
  * Guard: Session + StudentGuard. A student's active course roster projection.
+ * `currentJoinableSession` is the nullable discovery projection; it rides on
+ * the existing paginated response (pagination/order are unchanged).
  */
 export interface MyCourseDto {
   enrollmentId: string;
@@ -189,6 +202,7 @@ export interface MyCourseDto {
   enrolledAt: string;
   createdAt: string;
   updatedAt: string;
+  currentJoinableSession: CurrentJoinableSession | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -316,3 +330,68 @@ export interface OpenTextResults {
  */
 export type SessionQuestionResults =
   PollResults | QuizResults | OpenTextResults;
+
+// ---------------------------------------------------------------------------
+// FE-4.1 — student entry/join transport.
+// Aligned with backend `src/modules/participants/api/dto/participant.dto.ts`
+// and the participant-safe snapshot projection in
+// `src/modules/participants/api/participants.controller.ts`. These are
+// participant-specific and must NOT be reused for the teacher detail
+// projection (`LiveSession`).
+// ---------------------------------------------------------------------------
+
+/**
+ * `JoinLiveSessionResponseDto` from `POST /live-sessions/:sessionCode/join`
+ * (envelope-unwrapped). For an enrolled student the backend returns
+ * `participantToken: null` and a server-authoritative `liveSession`; the
+ * frontend never synthesizes or stores a participant token.
+ */
+export interface JoinLiveSessionResponse {
+  participantId: string;
+  participantToken: string | null;
+  liveSession: {
+    id: string;
+    status: LiveSessionStatus;
+    sessionCode: string;
+  };
+  currentQuestion: SessionQuestion | null;
+}
+
+/**
+ * Participant-safe snapshot of a live session (FE-4.1). This is the learner
+ * projection returned by `GET /live-sessions/:id/snapshot` for a participant
+ * context. It deliberately omits `questionSelections`, teacher counts, teacher
+ * controls, and unrevealed correctness. Only open questions are returned, each
+ * carrying `hasSubmitted`. `watermark`/`results` are actor-safe and optional.
+ */
+export interface ParticipantLiveSessionSnapshot {
+  id: string;
+  courseId: string;
+  status: LiveSessionStatus;
+  sessionCode: string;
+  startedAt: string | null;
+  closedAt: string | null;
+  autoClosed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  sessionQuestions: SessionQuestion[];
+  watermark?: {
+    eventSeq: string;
+    aggregateVersions: Record<string, number>;
+  };
+  results?: Record<string, SessionQuestionResults>;
+}
+
+/**
+ * `StudentLiveSessionStatusDto` from `GET /live-sessions/:id/student-status`
+ * (envelope-unwrapped). A student-only lifecycle receipt for all four states
+ * (`waiting | active | closed | cancelled`), HTTP 200. It is intentionally
+ * narrower than the teacher `LiveSessionDto`: no session code, questions,
+ * results, counts, or watermark. `startedAt`/`closedAt` are ISO-8601 or null.
+ */
+export interface StudentLiveSessionStatus {
+  id: string;
+  status: LiveSessionStatus;
+  startedAt: string | null;
+  closedAt: string | null;
+}

@@ -31,6 +31,7 @@ export function useLogin() {
         mutate: false,
       }),
     onSuccess: (session) => {
+      queryClient.removeQueries({ queryKey: queryKeys.myCourses.all });
       queryClient.setQueryData(queryKeys.session, session);
     },
   });

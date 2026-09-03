@@ -103,12 +103,19 @@ describe("LoginForm — happy path", () => {
     (apiRequest as unknown as Mock).mockResolvedValueOnce(makeSession());
 
     searchParams.set("next", "/admin/accounts/new");
-    renderForm();
+    const queryClient = renderForm();
+    queryClient.setQueryData(["my-courses", "list", 1, 20], {
+      data: [{ courseId: "previous-student-course" }],
+      meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+    });
     await user.type(screen.getByLabelText("帳號"), "alice");
     await user.type(screen.getByLabelText("密碼"), "a-valid-password");
     await user.click(screen.getByRole("button", { name: "登入" }));
 
     await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(
+      queryClient.getQueryData(["my-courses", "list", 1, 20]),
+    ).toBeUndefined();
 
     // CSRF-exempt: mutate:false so no CSRF/Origin header path is taken.
     expect(apiRequest).toHaveBeenCalledTimes(1);

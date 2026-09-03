@@ -112,3 +112,24 @@
 - **偵測訊號**：forced-password browser case 在真實頁面已正確導向 `/settings/password`，但第一次 fill 即因 strict-mode locator error 中止，並非產品流程錯誤。
 - **預防規則**：密碼表單含前綴相似 label 時使用 `getByLabel("新密碼", { exact: true })`；避免以包含匹配代替穩定的欄位語義。
 - **Tripwire**：任何新增或修改 ChangePasswordForm browser harness 先執行該 forced-password case；若錯誤出現在 `locator.fill` strict mode，先檢查 label exactness 再診斷產品行為。
+
+## Verify HTTP status against the actual controller decorator
+
+- **失敗模式**：FE-1.3 browser spec 對 `DELETE /courses/:courseId/enrollments/:studentAccountId` 斷言 HTTP 201，但 backend controller 沒有 `@HttpCode(201)`，Nest 對回傳 `null` 的 DELETE 預設回 HTTP 200，導致正常 enrollment removal 被測試誤判失敗。
+- **偵測訊號**：code review 對照 controller route 與 browser helper 時發現 `@Delete` 沒有 `@HttpCode`；失敗會發生在第一次 enrollment removal，並可能連帶使 cleanup removal 報錯。
+- **預防規則**：browser acceptance 的每個 status assertion 都必須對照實際 controller decorator／既有 API reference，不可從其他 mutation route（例如 POST 201）推測 DELETE 狀態；修正後先跑 typecheck、format、browser discovery，具備 fixture 時再跑 real-browser flow。
+- **Tripwire**：新增或修改 browser API helper 時，grep 對應 backend `@Delete`／`@Post` route，確認 `@HttpCode` 與預期 status 一致；特別檢查回傳 `null` 的 DELETE 是否為 200。
+
+## Real-browser flows must model forced-password and cached navigation
+
+- **失敗模式**：real-browser login helper 等待 requested role destination（例如 `/student`），但新帳號首次登入依產品規則先導向 `/settings/password`；另外由 React Query fresh cache 回上一頁時不一定會產生新的 network response，測試若無條件等待 `waitForResponse` 會逾時。
+- **偵測訊號**：login POST 已回 201 但 URL assertion 等待逾時；或 Previous click 後 UI 已顯示第一頁、卻沒有符合條件的 GET response。若登入成功旗標在完整 navigation 後才設定，finally 也會漏掉尚未完成導向的 session。
+- **預防規則**：browser login helper 應接受受控的 forced-password intermediate route，並在確認 login response 成功時先記錄 session cleanup state；pagination assertions 應等待可觀察的 rendered metadata，不能假定每次 page change 都會打網路。Tie-break assertions 必須依 backend 實際排序欄位。
+- **Tripwire**：每個 forced-password fixture 先跑 login → password-change；每個 cached-page transition 同時覆蓋「有 request」與「直接使用 fresh cache」路徑，並在 finally 檢查所有已成功 identity assertion 的 disposable account/resource 都有 cleanup attempt。
+
+## Playwright response waits must ignore aborted responses
+
+- **失敗模式**：real-browser spec 用 URL 與 HTTP method 等條件等待 `/me/courses` response；瀏覽器 reload 期間先收到同 URL 的 aborted response，`response.json()` 因無完整 body 失敗，測試在產品 response 回來前中止。
+- **偵測訊號**：backend log 同時出現 `request aborted`（`statusCode:null`）與後續 `request completed`（`statusCode:200`）；Playwright 報 `did not return JSON`。
+- **預防規則**：對需要解析 body 的 Playwright response wait，除了 URL/method 外加入預期 HTTP status（本案例 `response.status() === 200`），避免把 aborted/非最終 response 當成成功資料。
+- **Tripwire**：任何 `waitForResponse` 後立即呼叫 `json()` 的 browser helper，檢查 predicate 是否排除 status 0/aborted response；real-backend rerun 必須驗證實際 body parse。

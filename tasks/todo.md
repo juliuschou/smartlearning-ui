@@ -723,3 +723,81 @@ CP4 is complete and verified at the focused/static level. Do not begin CP5, F1, 
 - **Constrained disposition:** failed/expired logout remains **CONSTRAINED** by design; no unsafe DB mutation, mock, or forced expiry was used to manufacture that case. This does not weaken the unit-level rejection-path cache-clear coverage.
 - **Harness-only corrections:** same-host API cookie targeting, secure localhost cookie fixture, exact `新密碼` label matching, and asynchronous visibility waits were temporary acceptance-harness changes outside the repositories; no permanent browser spec/config was added.
 - **WBS disposition:** FE-1.2.1–FE-1.2.6 were marked `[x]` with explicit user acceptance of the CP4 real-browser evidence (2026-09-03). The prior constrained evidence is superseded by this CP4 PASS for the covered matrix.
+
+## 2026-09-03 FE-1.3 我的課程
+
+### Goal and acceptance criteria
+
+- [x] Render the real student course roster from `GET /api/v1/me/courses?page&pageSize` only; no mock, placeholder, fallback data, client filtering, or client reordering.
+- [x] Show course name, nullable description, lifecycle status (`draft → 草稿`, `archived → 已封存`), and Taipei-localized enrollment time in semantic `<time dateTime>` markup.
+- [x] Keep loading, empty, error, and data states mutually exclusive with accessible semantics; never expose raw backend error detail.
+- [x] Use server pagination metadata with fixed `pageSize=20`, page controls, and page contraction handling; empty controls appear only for valid empty first page.
+- [x] Archived active enrollments remain visible; removed enrollments disappear after refetch/reload.
+- [x] Mobile 390×844 and desktop 1280×800 have no horizontal overflow; long names/descriptions wrap completely.
+- [x] Do not add Course detail, active-session, join CTA, student enrollment mutation, or backend/schema changes.
+- [x] Dedicated real-backend browser acceptance passes with zero skip and fail-closed cleanup, subject to explicit isolated fixture availability.
+
+### Checkpoint status
+
+- [x] CP0 — baseline and provisional contract record.
+- [x] CP1 — minimal UI completion.
+- [x] CP2 — focused regression coverage.
+- [x] CP3 — full frontend verification.
+- [x] CP4 — dedicated isolated real-backend browser acceptance (PASS: 1 Chromium test, 0 skipped, cleanup PASS).
+- [x] CP5 — evidence mapping and WBS closeout accepted by user (2026-09-03).
+
+### Acceptance matrix
+
+| Area                  | Evidence                              | Expected result                                                                     |
+| --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
+| Transport boundary    | `enrollments-api.test.tsx` regression | Explicit `page=1&pageSize=20`, query key identity, student gate, no retry preserved |
+| Loading               | `my-courses-view.test.tsx`            | `role=status`, `aria-live=polite`, no list/empty/error                              |
+| Empty                 | `my-courses-view.test.tsx`            | `total=0,totalPages=0`, guidance only, no pagination or self-enroll CTA             |
+| Data/presentation     | component tests + browser             | full text, nullable description, Chinese lifecycle labels, Taipei `<time>`          |
+| Pagination            | component tests + browser             | page 1↔2, metadata, disabled boundaries, server ordering                            |
+| Contraction           | component test                        | out-of-range response returns to effective page, no false global empty              |
+| Error/privacy         | component tests + browser UI          | curated `ErrorAlert`, raw backend message absent                                    |
+| Responsive            | browser                               | no document/body horizontal overflow at mobile and desktop                          |
+| Persistence/semantics | browser                               | reload retains roster; archive remains; removed enrollment disappears               |
+| Cleanup               | browser finally block                 | only verified UUIDs, enrollment removal before course archive, aggregate failures   |
+
+### Risk & Rollback
+
+- **Risk: medium** — UI/test/browser harness only; no backend, schema, migration, dependency, or shared-data changes.
+- Provisional contract drift, zero-page versus contraction confusion, status/enrollment semantic mix-up, timezone nondeterminism, and fixture contamination are stop-the-line conditions.
+- Roll back `MyCoursesView`, focused tests, browser spec, and this task record independently; never reset the working tree, truncate data, or delete shared rows.
+
+### Dependencies & Environment
+
+- Node 24+, Next.js 16.3.1, React 19, TanStack React Query 5, Vitest/jsdom, Playwright.
+- Run `npx next typegen` before typecheck. Real browser requires a running frontend/backend, migrated disposable DB, explicit CORS origin, same-host UI/API URLs, secure localhost `__Host-*` cookies, and isolated credentials.
+- Browser fixture variables are feature-specific `FE13_*`; missing prerequisites must be reported as FAIL/BLOCKED or CONSTRAINED, never hidden with `test.skip`.
+
+### Working Notes
+
+- FE-1.1 transport and FE-1.2 routing/session gates are existing boundaries and must remain unchanged.
+- Backend contract evidence: active enrollments only, archived course visible, removed absent, `enrolledAt DESC, id DESC`, one-based pagination, empty `totalPages=0`.
+- Existing browser conventions in `test/browser/us-f0-course-flow.spec.ts`: `allHeaders()` for Origin assertions, secure same-host cookies, verified UUID tracking, reconciliation for uncertain creates, and aggregate fail-closed cleanup.
+- No WBS checkbox changes until zero-skip browser PASS, cleanup PASS, and user acceptance.
+
+### Results — static implementation and real-browser acceptance PASS; WBS closeout accepted (2026-09-03)
+
+- **What changed:** completed the real student roster in `MyCoursesView` using the existing `useMyCourses` transport; added fixed `pageSize=20` pagination, server-metadata presentation, contraction handling, localized lifecycle labels, Taipei enrollment times, accessible loading/error/empty states, and responsive long-text wrapping. No client filtering/reordering, placeholder/fallback data, enrollment mutation, Course detail, or backend change was added.
+- **Regression coverage:** expanded `test/my-courses-view.test.tsx` to 7 tests covering four-state exclusivity, nullable descriptions, lifecycle labels, semantic times, curated errors, pagination boundaries, page contraction, and non-student query gating. Added `test/browser/fe-1-3-my-courses.spec.ts` for isolated real-backend acceptance with fail-closed fixture preflight and aggregate cleanup. Corrected the enrollment-removal assertion to HTTP 200, matching the backend `DELETE` controller contract.
+- **Browser hardening:** forced-password login now accepts the `/settings/password` intermediate route and records successful login before navigation completes; server ordering ties compare `enrollmentId`; cached page-1 navigation waits on rendered metadata rather than assuming a network request; contraction invalidates the effective page cache before returning to it; uncertain Course create responses with 5xx/unknown status remain eligible for reconciliation. The cleanup disables the verified disposable student account through the existing admin step-up endpoint and reports unverified account identity as a cleanup failure.
+- **Session safety:** successful login clears prior `my-courses` query entries, and `MyCoursesView` renders no roster for a non-student session so disabled queries cannot expose cached student data.
+- **Static verification:** `npx next typegen` → PASS; `npm test` → PASS (19 files / 117 tests, 0 failures); `npm test -- test/my-courses-view.test.tsx` → PASS (1 file / 7 tests); `npm run typecheck` → PASS; `npm run lint:check` → PASS (0 errors, one pre-existing React Compiler warning at `features/admin/AccountCreateForm.tsx:68`); `npm run build` → PASS (Next.js 16.3.1, 12/12 pages); `npm run test:browser -- --list` → PASS (discovery only); targeted Prettier check → PASS; `git diff --check` → PASS. The repository has no `format:check` script, so that documented backend-style command is unavailable for the frontend; the equivalent targeted Prettier checks passed.
+- **Warnings:** Vitest reports the existing Vite config-loader/ESM warning; ESLint reports the existing React Hook Form `watch()` compatibility warning. Neither is introduced by FE-1.3.
+- **Real-browser status:** **PASS**. With the authorized isolated FE13 backend/database, same-host UI/API runtime, secure `__Host-*` cookies, and disposable admin fixture, `set -a; source /tmp/fe13-20260903.env; set +a; npm run test:browser -- --workers=1 test/browser/fe-1-3-my-courses.spec.ts` passed: 1 Chromium test, 0 skipped, 4.9 seconds. The test's aggregate cleanup completed with no errors; no unrelated browser suite ran.
+- **Acceptance:** CP0–CP4 evidence was accepted by the user on 2026-09-03; CP5 is complete and the authoritative WBS FE-1.3.1–FE-1.3.6 entries are now synchronized. This closes FE-1.3 only; BE-1/BE-2 formal contract freeze and broader release acceptance remain independent.
+
+### CP5 Results — evidence mapping and WBS closeout (2026-09-03)
+
+- **FE-1.3.1 Course list UI:** `features/student/MyCoursesView.tsx`, `test/my-courses-view.test.tsx`, and the isolated browser flow verify server-backed course cards, complete text, nullable descriptions, lifecycle labels, and no client filtering/reordering.
+- **FE-1.3.2 Loading state:** component regression verifies `role="status"`, `aria-live="polite"`, and mutual exclusion from list, empty, and error content.
+- **FE-1.3.3 Empty state:** component regression and browser evidence verify valid `total=0,totalPages=0` guidance without pagination or self-enrollment controls.
+- **FE-1.3.4 Error state:** component regression and browser UI evidence verify curated `ErrorAlert` output with raw backend detail excluded.
+- **FE-1.3.5 Responsive layout:** isolated browser evidence verifies mobile `390×844` and desktop `1280×800` overflow constraints and long-text wrapping.
+- **FE-1.3.6 Real-backend browser smoke:** `npm run test:browser -- --workers=1 test/browser/fe-1-3-my-courses.spec.ts` passed 1 Chromium test with 0 skipped; aggregate fail-closed cleanup passed.
+- **WBS acceptance:** the user accepted the recorded CP4 real-browser result and authorized FE-1.3.1–FE-1.3.6 closeout. Only the corresponding six authoritative WBS checkboxes were updated; no BE-1/BE-2, QA-2.1, FE-2, backend, schema, or runtime acceptance was implied.
+- **Boundary retained:** the run used an isolated disposable FE13 environment and the existing task record as evidence; no new mutation run, mock/fallback, shared-data reset, or fixture teardown was performed for this documentation closeout.

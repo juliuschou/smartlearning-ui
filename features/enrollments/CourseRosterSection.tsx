@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { Field, inputClass } from "@/components/ui/Field";
 import { ApiRequestError } from "@/lib/api/client";
@@ -420,42 +421,8 @@ function RemoveEnrollmentButton({
   student: EnrollmentDto["student"];
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
   const removeEnrollment = useRemoveEnrollment();
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const dialog = dialogRef.current;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    dialog?.querySelector<HTMLElement>("button")?.focus();
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-        return;
-      }
-      // Minimal focus trap: keep Tab cycling inside the dialog.
-      if (event.key !== "Tab" || !dialog) return;
-      const focusables = dialog.querySelectorAll<HTMLElement>("button");
-      if (focusables.length === 0) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [isOpen]);
 
   async function handleConfirmRemove() {
     setError(null);
@@ -482,58 +449,20 @@ function RemoveEnrollmentButton({
         移除
       </button>
 
-      {isOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-          onClick={() => setIsOpen(false)}
-        >
-          <div
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="remove-enrollment-heading"
-            className="w-full max-w-sm rounded-md border border-zinc-200 bg-white px-4 py-4 shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h3
-              id="remove-enrollment-heading"
-              className="text-sm font-semibold"
-            >
-              確認移除學生
-            </h3>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              將「{student.displayName}」（{student.username}
-              ）從這門課的名冊移除？
-            </p>
-            {error ? (
-              <div className="mt-3">
-                <ErrorAlert
-                  error={{ code: error }}
-                  id="remove-enrollment-error"
-                />
-              </div>
-            ) : null}
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                disabled={removeEnrollment.isPending}
-                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleConfirmRemove()}
-                disabled={removeEnrollment.isPending}
-                className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {removeEnrollment.isPending ? "移除中…" : "確認移除"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ConfirmDialog
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        headingId="remove-enrollment-heading"
+        heading="確認移除學生"
+        body={`將「${student.displayName}」（${student.username}）從這門課的名冊移除？`}
+        confirmLabel="確認移除"
+        pendingLabel="移除中…"
+        isPending={removeEnrollment.isPending}
+        errorCode={error}
+        errorId="remove-enrollment-error"
+        onConfirm={() => void handleConfirmRemove()}
+        onCancel={() => setIsOpen(false)}
+      />
     </>
   );
 }

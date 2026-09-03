@@ -903,3 +903,163 @@ Review findings were triaged and the following fixes landed before closeout:
 - **Implementation/static verification complete.** FE-2.2 UI/browser work and WBS checkbox closure remain outside this request and are not claimed.
 - **Committed:** UI commit `025e794` (`feat(api): complete FE-2.1 enrollment roster transport`) on `docs/tasks-us-f0-cp1-disposition`; backend commit `1c38d9c` (`feat(enrollments): add teacher student-search contract (BE-2)`) on backend `main`. Backend `tasks/todo.md` record intentionally left uncommitted with the working tree.
 - FE-2.1 transport items are complete against the frozen BE-2 contract; authoritative WBS checkboxes remain unchecked pending explicit closeout authorization.
+
+## FE-2.2 Roster UI — Results (2026-09-03)
+
+### What changed
+
+- `features/enrollments/CourseRosterSection.tsx`（新）：課程詳情名冊區塊 — paginated roster table（active/removed 文字+符號、加選時間、僅 active row 有移除鈕）、student search（300ms debounce、2–100 code points client 校驗、課程相對 enrollmentStatus 顯示）、加選成功回饋依 mutation 前快照區分「已加入／已在名冊中（duplicate idempotent）／已重新加選」，409 `COURSE_NOT_EDITABLE` 顯示「課程已封存，無法修改名冊」；移除走 `role="dialog"` 確認（Esc 關閉、focus trap、失敗時 ErrorAlert 留在對話內）。404 roster 呈現 course-generic「無法存取這門課程的名冊」（existence-hiding），403/其他走 stable-code ErrorAlert。
+- `app/(teacher)/courses/[courseId]/page.tsx`：於 `CourseDetailView` 下方掛載 `CourseRosterSection`。
+- `lib/api/error-messages.ts`：新增 `COURSE_NOT_EDITABLE`、`VALIDATION_ERROR` 中文文案。
+- `test/roster-section.test.tsx`（新，16 tests）：loading/empty/404/403/409、active+removed 表格、分頁邊界、搜尋最短長度、new/duplicate/reactivation 回饋、移除確認（取消不 DELETE、Esc 關閉、失敗留對話）。
+- `test/course-detail-route.test.tsx`：route shell 測試改以 QueryClientProvider 包裹並斷言 roster section 掛載。
+- `test/browser/fe-2-2-roster.spec.ts`（新，Playwright real-backend）：搜尋→加選→duplicate→移除確認→reactivation→archived 409→student 403 全流程 + admin cleanup（archive courses、disable accounts），沿用 FE-1.3 fixture 模式（FE22_* 環境變數，不 skip）。
+
+### Verification
+
+- `npm test` → 20 files / 154 tests PASS（含新 16 tests）。
+- `npx next typegen` → PASS；`npm run typecheck` → PASS。
+- `npm run lint:check` → 0 errors（僅既有 `AccountCreateForm.tsx:68` React Compiler warning）。
+- `npm run build` → PASS。
+- `npx prettier --check`（所有新/改檔）→ PASS；`git diff --check` → PASS。
+
+### Not closed
+
+- FE-2.2.9 real-browser acceptance：BLOCKED — 需使用者提供隔離 real backend 與 `FE22_API_BASE / FE22_UI_ORIGIN / FE22_ADMIN_USERNAME / FE22_ADMIN_PASSWORD / FE22_COURSE_NAME_PREFIX`（可選 `FE22_TEACHER_USERNAME / FE22_TEACHER_PASSWORD`，未提供時 spec 自建一次性 teacher）。執行：`node test/browser/run.mjs test/browser/fe-2-2-roster.spec.ts`（先 `npm run dev` 於同 host）。
+- FE-2.2.8 a11y 的鍵盤走查已由單元測試涵蓋 Tab/Enter/Escape 與 aria 標記；screen-reader sanity 留 QA-2.2。
+- WBS checkboxes 未勾選（待使用者授權 closeout）。
+
+### Commit
+
+- UI commit `7cbcc46`（`feat(teacher): complete FE-2.2 enrollment roster UI`）on `docs/tasks-us-f0-cp1-disposition`，6 files / +1786 −16；`tasks/todo.md` 紀錄依慣例保留於工作樹。
+
+## FE-3.1 Live Session transport — CP1 confirmation (2026-09-03)
+
+### Goal and acceptance criteria
+
+- [x] `useLiveSession(id)` fetches `GET /live-sessions/:id`, unwraps the envelope, and preserves `joinedCount`/`votedCount` plus `sessionQuestions[]`/`questionSelections[]`.
+- [x] Query key `liveSessions.detail(id)` is collision-free; empty id disables the query; `retry:false`; typed `ApiRequestError` preserved.
+- [x] Wire types (`LiveSession`, `SessionQuestion`, `QuestionSelection`, `SessionQuestionOption`, `QuestionSnapshotType`, statuses) align with the frozen BE-3 contract.
+- [x] Focused/static/full verification passes; CP2 mutations are not yet implemented.
+
+### Checkpoint status
+
+- [x] CP1 — detail + counts transport confirmed (2026-09-03).
+
+### Verification
+
+- `npx next typegen` → PASS.
+- `npm run typecheck` → PASS (0 diagnostics).
+- `npm test -- test/live-sessions-api.test.tsx` → PASS (1 file / 3 tests).
+- `npm run lint:check` → PASS (0 errors; 4 pre-existing warnings in `test/browser/fe-2-2-roster.spec.ts` — unused vars, not introduced here).
+- `npx prettier --check` (live-sessions/types/query-keys/error-messages/test) → PASS.
+- `npm test` → PASS (21 files / 157 tests).
+- `git diff --check` → PASS.
+
+### Working notes
+
+- `lib/api/live-sessions.ts` currently exports only `liveSessionQueryOptions`/`useLiveSession` (CP1 scope). `types.ts`/`query-keys.ts`/`error-messages.ts` already carry some CP3 result types/keys/codes; CP2 will add the lifecycle + open/close mutations and their focused tests.
+- FE-3.1.1 session-list remains blocked (no backend list endpoint); only detail is implemented per the confirmed decision.
+
+### Decision
+
+CP1 confirmed. Proceeding to CP2 (lifecycle + open/close question mutations) per the plan's manual-confirmation checkpoint.
+
+## FE-3.1 Live Session transport — CP2 lifecycle + open/close mutations (2026-09-03)
+
+### Goal and acceptance criteria
+
+- [x] `useCreateLiveSession` sends only `{ courseId, questionIds }` via `POST /live-sessions` (`mutate:true`), returns the server-authoritative `LiveSession`, and invalidates the created session's detail cache.
+- [x] `useStartLiveSession` / `useCloseLiveSession` / `useCancelLiveSession` send bodyless `POST` to `/live-sessions/:id/{start|close|cancel}`, return `LiveSession`, and invalidate that session's detail cache.
+- [x] `useOpenSessionQuestion` / `useCloseSessionQuestion` send bodyless `POST` to `/live-sessions/:id/questions/:sqId/{open|close}`, return `SessionQuestion`, and invalidate the session detail cache.
+- [x] All mutations use `mutate:true` (CSRF/Origin attached), await invalidation (FE-2.1 review-hardening convention), and preserve the original `ApiRequestError` on failure without invalidating.
+- [x] Focused/static/full verification passes; CP3 (results transport) is not yet implemented.
+
+### Checkpoint status
+
+- [x] CP2 — lifecycle + open/close question mutations complete (2026-09-03).
+
+### Verification
+
+- `npm test -- test/live-sessions-api.test.tsx` → PASS (1 file / 10 tests: 3 CP1 + 7 CP2).
+- `npm run typecheck` → PASS (0 diagnostics).
+- `npm run lint:check` → PASS (0 errors; 4 pre-existing warnings in `test/browser/fe-2-2-roster.spec.ts`).
+- `npx prettier --check` (live-sessions/types/query-keys/error-messages/test) → PASS.
+- `npm test` → PASS (21 files / 164 tests).
+- `npm run build` → PASS (Next.js production build).
+- `git diff --check` → PASS.
+
+### Working notes
+
+- All mutations return 201 (classify by envelope `data`, not status); session lifecycle returns `LiveSessionDto`, open/close question returns `SessionQuestionDto`.
+- `useCreateLiveSession` uses `CreateLiveSessionPayload` directly as its variables type (an empty `extends` interface tripped `@typescript-eslint/no-empty-object-type`).
+- Test convention: mutations are driven with `act(() => mutate(...))` + `await waitFor(isSuccess)` — the `mutateAsync` pattern does not flush `result.current.data` synchronously in this harness.
+
+### Decision
+
+CP2 complete and verified. Stopping at the CP2 manual-confirmation checkpoint; CP3 (teacher result transport) will not start without explicit user confirmation.
+
+## FE-3.1 Live Session transport — CP3 teacher result transport (2026-09-03)
+
+### Goal and acceptance criteria
+
+- [x] `useSessionQuestionResults(id, sessionQuestionId)` fetches `GET /live-sessions/:id/questions/:sessionQuestionId/results`, unwraps the envelope, and preserves the discriminated union (`poll` / `quiz` + correctness / `open_text`).
+- [x] Query key `liveSessions.results(id, sqId)` is collision-free; empty session/question id disables the query; `retry:false`; typed `ApiRequestError` preserved.
+- [x] Focused/static/full verification passes; FE-3.2 realtime and FE-3.3 teacher UI are not yet implemented.
+
+### Checkpoint status
+
+- [x] CP3 — teacher result transport complete (2026-09-03).
+
+### Verification
+
+- `npm test -- test/live-sessions-api.test.tsx` → PASS (1 file / 13 tests: 3 CP1 + 7 CP2 + 3 CP3).
+- `npx next typegen` → PASS.
+- `npm run typecheck` → PASS (0 diagnostics).
+- `npm run lint:check` → PASS (0 errors; 4 pre-existing warnings in `test/browser/fe-2-2-roster.spec.ts` — unused vars, not introduced here).
+- `npx prettier --check` (live-sessions/types/query-keys/error-messages/test) → PASS.
+- `npm run build` → PASS (Next.js production build).
+- `npm test` → PASS (21 files / 167 tests).
+- `git diff --check` → PASS.
+
+### Working notes
+
+- The teacher results route lives in the **participants controller** (`@Get(':liveSessionId/questions/:sessionQuestionId/results')`, `ParticipantOrSessionGuard`), not the live-sessions controller; a teacher/admin Web session sees the anonymous aggregate at any time, quiz correctness always revealed to the teacher.
+- There is no session-wide overview endpoint — callers aggregate per question (FE-3.3).
+- `SessionQuestionResults` discriminated-union types, `liveSessions.results` query key, and result error codes were already present in the working tree from CP1/CP2; CP3 added only the `sessionQuestionResultsQueryOptions`/`useSessionQuestionResults` hook and its focused tests.
+
+### Decision
+
+CP3 complete and verified. Stopping at the CP3 manual-confirmation checkpoint; FE-3.2 realtime and FE-3.3 teacher UI will not start without explicit user confirmation.
+
+## FE-3.2 Realtime adapter + FE-3.3 Teacher UI — Results (2026-09-03)
+
+### What changed
+
+- **FE-3.2 (realtime adapter, Lite):** added `socket.io-client@4.8.3` (exact, matches the backend `socket.io@4.8.3` server). New `lib/live/realtime-types.ts` (durable envelope + typed event map), `lib/live/socket-client.ts` (`createLiveSocket` with `auth.liveSessionId` + `websocket` transport + `withCredentials`; `useLiveConnection` owning the socket lifecycle and exposing `status`/`errorCode`/`sendSnapshotFetch`/`socket`), and `lib/live/use-live-session-events.ts` (maps `session.snapshot`/`question.opened`/`question.closed`/`session.state_changed`/`result.updated`/`counts.updated`/`sync.required`/`session.closed` to authoritative React Query cache invalidation/seed, deduped by `(liveSessionId, eventSeq)`).
+- **FE-3.3 (teacher UI):** new protected deep-link route `app/(teacher)/live/[liveSessionId]/` (page + loading/error/not-found boundaries) and `features/live-teacher/` — `LiveClassroomView` (status + session code + connection badge, joined/voted indicators, question queue, per-question result dashboard, close/cancel dialogs), `QuestionQueue` (open/close controls), `ResultPanel` (poll/quiz/open_text discriminated union with semantic CSS bars), `CloseCancelDialog`. Extracted the shared `components/ui/ConfirmDialog` from `CourseRosterSection` (roster removal now reuses it; behavior unchanged). Added realtime error codes to `lib/api/error-messages.ts`.
+- **Entry point:** the dashboard is reached **solely by deep link** to `/live/:liveSessionId` (no session-list endpoint; no create/picker because F9 question authoring is blocked; the course detail view has no way to learn a session id). No session-picker/create entry was added.
+
+### Where
+
+New: `lib/live/{realtime-types,socket-client,use-live-session-events}.ts`, `features/live-teacher/{LiveClassroomView,QuestionQueue,ResultPanel,CloseCancelDialog}.tsx`, `components/ui/ConfirmDialog.tsx`, `app/(teacher)/live/[liveSessionId]/{page,loading,error,not-found}.tsx`, `test/{realtime-adapter,confirm-dialog,question-queue,result-panel,live-classroom-view,live-classroom-route}.test.tsx`. Modified: `features/enrollments/CourseRosterSection.tsx` (ConfirmDialog refactor), `lib/api/error-messages.ts`, `package.json`/`package-lock.json` (socket.io-client).
+
+### How verified
+
+- `npx next typegen` → PASS (route types generated, incl. `/live/[liveSessionId]`).
+- `npm run typecheck` → PASS (0 diagnostics).
+- `npm run lint:check` → PASS (0 errors; 4 pre-existing warnings: `AccountCreateForm.tsx:68` React Compiler + 3 unused vars in `test/browser/fe-2-2-roster.spec.ts`).
+- `npm test` → PASS (27 files / 199 tests, 0 failures). New: realtime-adapter 10, confirm-dialog 6, question-queue 5, result-panel 5, live-classroom-view 5, live-classroom-route 1. Existing roster (16) and live-sessions-api (13) still pass after the ConfirmDialog refactor.
+- `npm run build` → PASS (Next.js production build; `/live/[liveSessionId]` dynamic route present).
+- `npx prettier --check` (all new/changed files) → PASS; `git diff --check` → PASS.
+
+### WBS mapping
+
+- FE-3.2.1 socket wrapper → `lib/live/socket-client.ts`; FE-3.2.2 Web Session handshake → `createLiveSocket` (`withCredentials` + cookie); FE-3.2.3 teacher room subscription → server-side via `auth.liveSessionId`; FE-3.2.4 snapshot on connect/reconnect → `useLiveConnection` + `snapshot.fetch`; FE-3.2.5 stale-state refetch → `sync.required` handling + REST refetch; FE-3.2.6 error/disconnect state → `useLiveConnection` status/error.
+- FE-3.3.1–3.3.6 → the view components; FE-3.3.7 responsive + keyboard → Tailwind responsive + dialog focus trap + a11y.
+
+### Not closed / deferred
+
+- **FE-3.3.8 real-backend browser acceptance: BLOCKED** — requires an isolated backend + a live session to exist (which needs F9 question authoring to create one). Recorded as blocked, not claimed, per the no-mock convention.
+- WBS checkboxes not updated (awaiting explicit closeout authorization).
+- No commit created (per repo convention, work stops at the checkpoint boundary pending user instruction).

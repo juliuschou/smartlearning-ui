@@ -31,6 +31,10 @@ const MESSAGES: Record<string, string> = {
   QUESTION_LOCKED_BY_SESSION: "此題已被課堂鎖定，無法修改。",
   RESULTS_NOT_REVEALED: "結果尚未公布，請稍後再試。",
   SUBMISSION_CONFLICT: "作答內容有衝突，請重新整理後再試一次。",
+  // Live session realtime (FE-3.2)
+  REALTIME_UNAVAILABLE: "即時連線暫時無法使用，請稍後再試。",
+  CONNECTION_FAILED: "即時連線失敗，請檢查網路後再試。",
+  SESSION_NOT_ACTIVE: "課堂目前不在進行中，無法執行此操作。",
   // Rate limit (US-F7 / R-F7-7)
   RATE_LIMITED: "嘗試次數過多，請稍後再試。",
   // Transport

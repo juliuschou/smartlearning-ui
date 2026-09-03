@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import CourseDetailError from "@/app/(teacher)/courses/[courseId]/error";
@@ -12,6 +13,14 @@ import CourseDetailPage, {
 vi.mock("@/features/courses/CourseDetailView", () => ({
   CourseDetailView: ({ courseId }: { courseId: string }) => (
     <div data-testid="course-detail-view">course detail for {courseId}</div>
+  ),
+}));
+
+// The page shell mounts the FE-2.2 roster section, which consumes React Query
+// hooks — render inside a provider so the shell test can exercise the real page.
+vi.mock("@/features/enrollments/CourseRosterSection", () => ({
+  CourseRosterSection: ({ courseId }: { courseId: string }) => (
+    <div data-testid="course-roster-section">roster for {courseId}</div>
   ),
 }));
 
@@ -28,7 +37,12 @@ describe("/courses/[courseId] route shell", () => {
     });
 
     expect(metadata.title).toBe("課程詳情 | 智學互動平台");
-    render(page);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>{page}</QueryClientProvider>,
+    );
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(
@@ -39,6 +53,9 @@ describe("/courses/[courseId] route shell", () => {
     ).toHaveAttribute("href", "/teacher");
     expect(screen.getByTestId("course-detail-view")).toHaveTextContent(
       "course detail for course-1",
+    );
+    expect(screen.getByTestId("course-roster-section")).toHaveTextContent(
+      "roster for course-1",
     );
   });
 });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CourseDetailView } from "@/features/courses/CourseDetailView";
+import { CourseRosterSection } from "@/features/enrollments/CourseRosterSection";
 
 export const metadata: Metadata = {
   title: "課程詳情 | 智學互動平台",
@@ -30,6 +31,9 @@ export default async function CourseDetailPage({
         </p>
         <div className="mt-6">
           <CourseDetailView courseId={courseId} />
+        </div>
+        <div className="mt-10">
+          <CourseRosterSection courseId={courseId} />
         </div>
       </div>
     </main>

@@ -23,9 +23,12 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3001',
+    command: useHttpsFixture
+      ? 'NEXT_PUBLIC_API_BASE=https://localhost:3444/api/v1 npx next dev --experimental-https --experimental-https-key /tmp/fe42-key.pem --experimental-https-cert /tmp/fe42-cert.pem -p 3443'
+      : 'npm run dev',
+    url: browserBaseURL,
     reuseExistingServer: true,
+    ignoreHTTPSErrors: useHttpsFixture,
     timeout: 60_000,
   },
   projects: [

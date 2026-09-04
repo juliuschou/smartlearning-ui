@@ -260,6 +260,7 @@ async function loginViaUi(
       url.origin === uiOrigin &&
       (url.pathname === destination.pathname ||
         url.pathname === "/settings/password"),
+    { waitUntil: "domcontentloaded" },
   );
   await page.getByRole("button", { name: "登入" }).click();
   const loginResponse = await loginResponsePromise;

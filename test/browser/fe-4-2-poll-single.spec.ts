@@ -244,7 +244,9 @@ async function loginViaUi(
   next: string,
   onLoginSuccess?: () => void,
 ) {
-  await page.goto(`/login?next=${encodeURIComponent(next)}`);
+  await page.goto(`/login?next=${encodeURIComponent(next)}`, {
+    waitUntil: "domcontentloaded",
+  });
   await page.getByLabel("帳號").fill(username);
   await page.getByLabel("密碼").fill(password);
   const destination = new URL(next, uiOrigin);

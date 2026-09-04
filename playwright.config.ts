@@ -8,13 +8,17 @@ import { defineConfig } from 'playwright/test';
  * own if none is reachable. The backend on 3000 must be up separately
  * (docker-compose stack) — Playwright does not manage it.
  */
+const browserBaseURL = process.env.FE42_UI_ORIGIN ?? 'http://localhost:3001';
+const useHttpsFixture = browserBaseURL.startsWith('https://');
+
 export default defineConfig({
   testDir: './test/browser',
   timeout: 30_000,
   retries: 0,
   fullyParallel: false, // shared backend state — avoid parallel writes
   use: {
-    baseURL: 'http://localhost:3001',
+    baseURL: browserBaseURL,
+    ignoreHTTPSErrors: useHttpsFixture,
     headless: true,
     trace: 'on-first-retry',
   },

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { LearnerLiveSessionView } from "@/features/live-student/LearnerLiveSessionView";
 
 export const metadata: Metadata = {
@@ -18,12 +17,6 @@ export default async function LearnerLivePage({
   return (
     <main className="flex flex-1 flex-col px-6 py-10">
       <div className="mx-auto w-full max-w-3xl">
-        <Link
-          href="/student"
-          className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:text-zinc-400"
-        >
-          ← 返回我的課程
-        </Link>
         <h1 className="mt-4 text-xl font-semibold tracking-tight">課堂</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           查看目前課堂狀態與開放題目。

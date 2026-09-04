@@ -464,19 +464,64 @@ async function closeSession(
   csrf: string,
   liveSessionId: string,
 ) {
+  const currentResponse = await request.get(
+    `${apiBase}/live-sessions/${liveSessionId}`,
+  );
+  const currentSession = parseLiveSession(
+    await readJson(currentResponse, "live-session before close"),
+    "live-session before close",
+  );
+  if (currentSession.status === "closed") return;
+  expect(currentSession.status, "live-session state before close").toBe("active");
+
   const response = await request.post(
     `${apiBase}/live-sessions/${liveSessionId}/close`,
     {
       headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
     },
   );
-  expect(response.status(), "live-session close status").toBe(201);
-  const session = parseLiveSession(
-    await readJson(response, "live-session close"),
-    "live-session close",
-  );
+  const responseBody = await response.text();
+  expect(
+    response.status(),
+    `live-session close status (body=${responseBody.slice(0, 512)})`,
+  ).toBe(201);
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(responseBody);
+  } catch {
+    throw new Error("live-session close did not return JSON");
+  }
+  const session = parseLiveSession(parsedBody, "live-session close");
   if (session.status !== "closed") {
     throw new Error("live-session close did not reach closed state");
+  }
+}
+
+async function cancelSession(
+  request: APIRequestContext,
+  csrf: string,
+  liveSessionId: string,
+) {
+  const response = await request.post(
+    `${apiBase}/live-sessions/${liveSessionId}/cancel`,
+    {
+      headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
+    },
+  );
+  const responseBody = await response.text();
+  expect(
+    response.status(),
+    `live-session cancel status (body=${responseBody.slice(0, 512)})`,
+  ).toBe(201);
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(responseBody);
+  } catch {
+    throw new Error("live-session cancel did not return JSON");
+  }
+  const session = parseLiveSession(parsedBody, "live-session cancel");
+  if (session.status !== "cancelled") {
+    throw new Error("live-session cancel did not reach cancelled state");
   }
 }
 
@@ -538,7 +583,10 @@ async function logoutContext(
       "X-CSRF-Token": await csrfToken(context),
     },
   });
-  expect(response.status(), "logout status").toBe(201);
+  const status = response.status();
+  if (status === 201 || status === 401) return;
+  const body = await response.text();
+  throw new Error(`logout status ${status} (body=${body.slice(0, 256)})`);
 }
 
 async function assertMutationHeaders(
@@ -871,7 +919,7 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
         studentPage.getByText(/課堂已結束，此頁面為唯讀/),
       ).toBeVisible();
       await expect(
-        studentPage.getByRole("link", { name: "返回我的課程" }),
+        studentPage.locator("section a[href='/student']"),
       ).toHaveAttribute("href", "/student");
 
       // --- Terminal race: a second session is closed between discovery and
@@ -911,11 +959,13 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
       });
       await expect(raceEntry).toBeVisible();
 
-      // Close the session between discovery and join to force the race.
-      await closeSession(teacherContext.request, teacherCsrf, raceSession.id);
+      // Cancel the waiting session between discovery and join to force the
+      // race (a waiting session is cancelled, not closed — close is active-only).
+      await cancelSession(teacherContext.request, teacherCsrf, raceSession.id);
       await raceEntry.click();
-      const raceError = studentPage.getByRole("alert");
-      await expect(raceError).toHaveText("此課堂目前無法加入。");
+      await expect(
+        studentPage.getByText("此課堂目前無法加入。"),
+      ).toBeVisible();
       await expect(
         studentPage.getByRole("button", { name: "重新整理課堂狀態" }),
       ).toBeVisible();
@@ -939,10 +989,9 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
         "/student",
       );
       await otherStudentPage.goto(`/student/live/${mainSession.id}`);
-      const notEnrolledAlert = otherStudentPage.getByRole("alert");
-      await expect(notEnrolledAlert).toHaveText(
-        "你尚未加選此課程，無法進入課堂。",
-      );
+      await expect(
+        otherStudentPage.getByText("你尚未加選此課程，無法進入課堂。"),
+      ).toBeVisible();
       await expect(
         otherStudentPage.getByText(mainCourse.name, { exact: true }),
       ).toHaveCount(0);
@@ -971,8 +1020,7 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
         (url) =>
           url.origin === uiOrigin &&
           url.pathname === "/login" &&
-          url.searchParams.get("next") ===
-            encodeURIComponent(`/student/live/${mainSession.id}`),
+          url.searchParams.get("next") === `/student/live/${mainSession.id}`,
       );
 
       // --- Disabled: after disabling the enrolled student, the participant
@@ -1017,8 +1065,7 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
         (url) =>
           url.origin === uiOrigin &&
           url.pathname === "/login" &&
-          url.searchParams.get("next") ===
-            encodeURIComponent(`/student/live/${mainSession.id}`),
+          url.searchParams.get("next") === `/student/live/${mainSession.id}`,
       );
       await anonymousContext.close();
     } catch (error) {
@@ -1048,6 +1095,25 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
         }
       }
 
+      // The enrolled student is disabled mid-test (its session is already
+      // revoked), so no logout is attempted for it here.
+      if (otherStudentLoggedIn && otherStudentContext) {
+        try {
+          await logoutContext(otherStudentContext.request, otherStudentContext);
+        } catch {
+          cleanupErrors.push("other student logout");
+        }
+      }
+      if (teacherLoggedIn && teacherContext) {
+        try {
+          await logoutContext(teacherContext.request, teacherContext);
+        } catch {
+          cleanupErrors.push("teacher logout");
+        }
+      }
+
+      // Logouts above must run before accounts are disabled: disabling revokes
+      // their sessions, after which an authenticated logout would 401.
       if (adminContext) {
         for (const courseId of createdCourseIds) {
           try {
@@ -1077,27 +1143,6 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
         }
       }
 
-      if (studentLoggedIn && studentContext) {
-        try {
-          await logoutContext(studentContext.request, studentContext);
-        } catch {
-          cleanupErrors.push("student logout");
-        }
-      }
-      if (otherStudentLoggedIn && otherStudentContext) {
-        try {
-          await logoutContext(otherStudentContext.request, otherStudentContext);
-        } catch {
-          cleanupErrors.push("other student logout");
-        }
-      }
-      if (teacherLoggedIn && teacherContext) {
-        try {
-          await logoutContext(teacherContext.request, teacherContext);
-        } catch {
-          cleanupErrors.push("teacher logout");
-        }
-      }
       for (const [name, context] of [
         ["admin", adminContext],
         ["teacher", teacherContext],

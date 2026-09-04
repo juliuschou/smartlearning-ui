@@ -158,8 +158,11 @@ function LiveState({
           >
             {STATUS_LABELS[snapshot.status]}
           </h2>
-          <span className="rounded-md border border-zinc-300 px-3 py-1 text-sm font-medium tracking-wide dark:border-zinc-700">
-            課堂代碼 {snapshot.sessionCode}
+          <span className="flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-1 text-sm font-medium tracking-wide dark:border-zinc-700">
+            課堂代碼
+            <span className="font-semibold tracking-widest">
+              {snapshot.sessionCode}
+            </span>
           </span>
         </div>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">

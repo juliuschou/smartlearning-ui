@@ -1520,8 +1520,8 @@ The older FE-4.1 CP5 blocked record is historical and is not rewritten. Commits 
 
 - [x] Add `test/browser/fe-4-2-poll-single.spec.ts` with FE42 preflight and isolated actor/aggregate lifecycle.
 - [x] Exercise backend response-loss marker and exact same-key replay through the student request context.
-- [ ] Run the browser scenario with an isolated backend/UI and provisioned FE42_* fixtures.
+- [x] Run the browser scenario with an isolated backend/UI and provisioned FE42_* fixtures.
 
 ### Results
 
-The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-bound request, unique fixture, and cleanup conventions. It now probes a real poll submission through the test-only backend response-loss marker and verifies authoritative same-key replay. Full CP5 UI acceptance is not claimed until runtime fixtures are available.
+The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-bound request, unique fixture, and cleanup conventions. It ran against the isolated HTTPS runtime with `--workers=1` and returned `1 passed / 0 failed / 0 skipped` in 20.8s. The run covered isolated teacher/two-student actors, poll-single UUID identity, response-loss and same-key replay, participant flow, and aggregate cleanup. No credentials, cookies, CSRF values, idempotency keys, or answer payloads were recorded in evidence.

@@ -73,6 +73,23 @@ export interface ChangePasswordPayload {
   newPassword: string;
 }
 
+/** `POST /live-sessions/:id/submissions` request body for a poll answer. */
+export interface CreateSubmissionPayload {
+  sessionQuestionId: string;
+  selectedOptionRefs: [string];
+}
+
+/** Immutable submission response returned by the live-session API. */
+export interface SubmissionDto {
+  id: string;
+  liveSessionId: string;
+  sessionQuestionId: string;
+  participantId: string;
+  selectedOptionRefs: string[] | null;
+  textAnswer: string | null;
+  submittedAt: string;
+}
+
 /**
  * `AccountDto` — never includes password_hash.
  * Wire contract: UUID id, UTC ISO timestamps, stable field names.

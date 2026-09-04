@@ -77,7 +77,14 @@ function openQuestion() {
     openedAt: "2026-09-03T09:01:00.000Z",
     closedAt: null,
     hasSubmitted: false,
-    options: [{ id: "opt-1", optionRef: "A", text: "數學", position: 0 }],
+    options: [
+      {
+        id: "01945f3e-0000-7000-8000-000000000002",
+        optionRef: "A",
+        text: "數學",
+        position: 0,
+      },
+    ],
   };
 }
 
@@ -455,9 +462,8 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
     expect(screen.queryByText(/已作答人數/)).not.toBeInTheDocument();
     expect(screen.queryByText(/結束課堂/)).not.toBeInTheDocument();
     expect(screen.queryByText(/正確/)).not.toBeInTheDocument();
-    // No answering control (FE-4.2).
-    expect(
-      screen.queryByRole("button", { name: /送出|作答/ }),
-    ).not.toBeInTheDocument();
+    // CP1 exposes only the local poll control; no submission API or
+    // teacher-only projection is present, and no selection means submit stays disabled.
+    expect(screen.getByRole("button", { name: "送出答案" })).toBeDisabled();
   });
 });

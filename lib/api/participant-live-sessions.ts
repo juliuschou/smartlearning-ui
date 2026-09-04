@@ -1,10 +1,17 @@
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest, type ApiRequestError } from "@/lib/api/client";
+import {
+  apiRequest,
+  apiRequestWithStatus,
+  type ApiRequestError,
+} from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import type {
+  CreateSubmissionPayload,
   JoinLiveSessionResponse,
   ParticipantLiveSessionSnapshot,
   StudentLiveSessionStatus,
+  SubmissionDto,
+  SessionQuestionResults,
 } from "@/lib/api/types";
 
 /**
@@ -43,6 +50,42 @@ export interface JoinLiveSessionVariables {
  * Origin. Returns the server-authoritative `liveSession`; the frontend never
  * stores `participantToken` (it is `null` for account joins).
  */
+export interface SubmitPollSingleVariables {
+  liveSessionId: string;
+  sessionQuestionId: string;
+  optionId: string;
+  idempotencyKey: string;
+}
+
+/** Submit one formal option UUID; retries are caller-controlled. */
+export function useSubmitPollSingle() {
+  return useMutation<
+    { data: SubmissionDto; status: number },
+    ApiRequestError,
+    SubmitPollSingleVariables
+  >({
+    mutationFn: ({
+      liveSessionId,
+      sessionQuestionId,
+      optionId,
+      idempotencyKey,
+    }) =>
+      apiRequestWithStatus<SubmissionDto>(
+        `/live-sessions/${liveSessionId}/submissions`,
+        {
+          method: "POST",
+          body: {
+            sessionQuestionId,
+            selectedOptionRefs: [optionId],
+          } satisfies CreateSubmissionPayload,
+          mutate: true,
+          idempotencyKey,
+        },
+      ),
+    retry: false,
+  });
+}
+
 export function useJoinLiveSession() {
   return useMutation<
     JoinLiveSessionResponse,
@@ -114,5 +157,41 @@ export function studentStatusQueryOptions(id: string) {
 export function useStudentStatus(id: string) {
   return useQuery<StudentLiveSessionStatus, ApiRequestError>({
     ...studentStatusQueryOptions(id),
+  });
+}
+
+/** Participant-safe per-question results; caller controls when results are enabled. */
+export function participantResultsQueryOptions(
+  liveSessionId: string,
+  sessionQuestionId: string,
+  enabled = false,
+) {
+  return queryOptions<SessionQuestionResults, ApiRequestError>({
+    queryKey: queryKeys.participantLiveSessions.results(
+      liveSessionId,
+      sessionQuestionId,
+    ),
+    queryFn: ({ signal }) =>
+      apiRequest<SessionQuestionResults>(
+        `/live-sessions/${liveSessionId}/questions/${sessionQuestionId}/results`,
+        { signal },
+      ),
+    enabled: Boolean(liveSessionId && sessionQuestionId && enabled),
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useParticipantResults(
+  liveSessionId: string,
+  sessionQuestionId: string,
+  enabled = false,
+) {
+  return useQuery<SessionQuestionResults, ApiRequestError>({
+    ...participantResultsQueryOptions(
+      liveSessionId,
+      sessionQuestionId,
+      enabled,
+    ),
   });
 }

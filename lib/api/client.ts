@@ -42,6 +42,8 @@ type RequestOptions = {
   /** True for mutations that require CSRF (POST/PUT/PATCH/DELETE on /api/v1). */
   mutate?: boolean;
   signal?: AbortSignal;
+  /** Narrow caller-controlled header: idempotency only. */
+  idempotencyKey?: string;
 };
 
 /**
@@ -57,6 +59,13 @@ export async function apiRequest<T>(
   path: string,
   opts: RequestOptions = {},
 ): Promise<T> {
+  return (await apiRequestWithStatus<T>(path, opts)).data;
+}
+
+export async function apiRequestWithStatus<T>(
+  path: string,
+  opts: RequestOptions = {},
+): Promise<{ data: T; status: number }> {
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
   const method = opts.method ?? "GET";
   const isMutation = opts.mutate ?? method !== "GET";
@@ -71,6 +80,7 @@ export async function apiRequest<T>(
     headers["Origin"] = UI_ORIGIN;
     const csrf = getCsrfToken();
     if (csrf) headers[CSRF_HEADER_NAME] = csrf;
+    if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
   }
 
   let res: Response;
@@ -120,5 +130,5 @@ export async function apiRequest<T>(
     throw new ApiRequestError(error, res.status);
   }
 
-  return (envelope as ApiSuccessEnvelope<T>).data;
+  return { data: (envelope as ApiSuccessEnvelope<T>).data, status: res.status };
 }

@@ -48,5 +48,7 @@ export const queryKeys = {
       ["participant-live-sessions", id, "snapshot"] as const,
     studentStatus: (id: string) =>
       ["participant-live-sessions", id, "student-status"] as const,
+    results: (id: string, sessionQuestionId: string) =>
+      ["participant-live-sessions", id, "results", sessionQuestionId] as const,
   },
 } as const;

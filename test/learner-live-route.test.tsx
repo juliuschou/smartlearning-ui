@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import LearnerLivePage from "@/app/(student)/student/live/[liveSessionId]/page";
 
 // The page is a Server Component that renders the client LearnerLiveSessionView;
-// route tests here assert the shell (back link, heading, liveSessionId passthrough)
-// by rendering the page component directly with an async params object. The client
+// route tests here assert the shell (heading and liveSessionId passthrough) by
+// rendering the page component directly with an async params object. The client
 // view needs a QueryClientProvider.
 function wrapperFor(queryClient: QueryClient) {
   return function QueryWrapper({
@@ -39,13 +39,12 @@ describe("LearnerLivePage route (FE-4.1 CP3)", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: /返回我的課程/ }),
-    ).toBeInTheDocument();
-    expect(
       screen.getByRole("heading", { name: "課堂", level: 1 }),
     ).toBeInTheDocument();
-    // The learner view mounts inside the page shell (it renders a loading state
-    // before fetching, so just assert the container is present via the main).
+    // The learner view mounts inside the page shell and starts with an
+    // authoritative snapshot loading state. Terminal-only controls, such as
+    // the return link, are intentionally not part of this initial render.
+    expect(screen.getByRole("status")).toHaveTextContent("載入課堂中…");
     expect(screen.getByRole("main")).toBeInTheDocument();
   });
 });

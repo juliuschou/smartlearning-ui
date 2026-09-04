@@ -7,6 +7,8 @@ import {
   normalizeSessionCode,
   participantSnapshotQueryOptions,
   studentStatusQueryOptions,
+  participantResultsQueryOptions,
+  useParticipantResults,
   useJoinLiveSession,
   useParticipantSnapshot,
   useStudentStatus,
@@ -262,6 +264,41 @@ describe("Student status query (CP1)", () => {
 
     expect(result.current.fetchStatus).toBe("idle");
     expect(apiRequestMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Participant results query (CP4)", () => {
+  it("uses the participant result key, forwards signal, and stays disabled until enabled", async () => {
+    const result = {
+      snapshotType: "poll" as const,
+      selectionMode: "single" as const,
+      status: "open" as const,
+      options: [{ optionId: "opt-1", optionRef: "A", text: "數學", count: 1 }],
+      totalResponses: 1,
+    };
+    apiRequestMock.mockResolvedValueOnce(result);
+    const queryClient = makeQueryClient();
+    const disabled = renderHook(
+      () => useParticipantResults("session-1", "sq-1"),
+      { wrapper: wrapperFor(queryClient) },
+    );
+    expect(disabled.result.current.fetchStatus).toBe("idle");
+    disabled.unmount();
+    const enabled = renderHook(
+      () => useParticipantResults("session-1", "sq-1", true),
+      { wrapper: wrapperFor(queryClient) },
+    );
+    await waitFor(() => expect(enabled.result.current.data).toEqual(result));
+    expect(apiRequestMock).toHaveBeenCalledWith(
+      "/live-sessions/session-1/questions/sq-1/results",
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(
+      participantResultsQueryOptions("session-1", "sq-1", true).queryKey,
+    ).toEqual(queryKeys.participantLiveSessions.results("session-1", "sq-1"));
+    expect(
+      participantResultsQueryOptions("session-1", "sq-1", true).queryKey,
+    ).not.toEqual(queryKeys.liveSessions.results("session-1", "sq-1"));
   });
 });
 

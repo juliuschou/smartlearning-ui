@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { PollSingleQuestion } from "@/features/live-student/PollSingleQuestion";
 import { ApiRequestError } from "@/lib/api/client";
 import {
   useParticipantSnapshot,
@@ -44,6 +46,19 @@ export function LearnerLiveSessionView({
   liveSessionId: string;
 }) {
   const snapshot = useParticipantSnapshot(liveSessionId);
+  const [retainedQuestion, setRetainedQuestion] =
+    useState<SessionQuestion | null>(null);
+  useEffect(() => {
+    const submittedQuestion = snapshot.data?.sessionQuestions.find(
+      (question) => question.hasSubmitted === true,
+    );
+    if (submittedQuestion) {
+      queueMicrotask(() => setRetainedQuestion(submittedQuestion));
+    }
+    if (snapshot.data && snapshot.data.id !== liveSessionId) {
+      queueMicrotask(() => setRetainedQuestion(null));
+    }
+  }, [liveSessionId, snapshot.data]);
   const isTerminal =
     snapshot.error instanceof ApiRequestError &&
     snapshot.error.code === "SESSION_NOT_JOINABLE";
@@ -87,13 +102,20 @@ export function LearnerLiveSessionView({
       // rather than render a wrong state.
       if (terminalStatus === "closed" || terminalStatus === "cancelled") {
         return (
-          <TerminalState
-            status={terminalStatus}
-            onRefresh={() => {
-              void snapshot.refetch();
-              void status.refetch();
-            }}
-          />
+          <>
+            <TerminalState
+              status={terminalStatus}
+              onRefresh={() => {
+                void snapshot.refetch();
+                void status.refetch();
+              }}
+            />
+            {retainedQuestion ? (
+              <PollSingleQuestion
+                question={{ ...retainedQuestion, status: "closed" }}
+              />
+            ) : null}
+          </>
         );
       }
       return (
@@ -196,26 +218,9 @@ function LiveState({
   );
 }
 
-/** Participant-safe open question: prompt + options + hasSubmitted, no answering control. */
+/** Participant-safe open question delegated to the poll-single renderer. */
 function OpenQuestion({ question }: { question: SessionQuestion }) {
-  return (
-    <div className="rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800">
-      <p className="text-sm font-medium">{question.snapshotPrompt}</p>
-      <ul className="mt-3 space-y-2">
-        {question.options.map((option) => (
-          <li
-            key={option.id}
-            className="rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800"
-          >
-            {option.text}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-        {question.hasSubmitted ? "你已作答。" : "尚未作答。"}
-      </p>
-    </div>
-  );
+  return <PollSingleQuestion question={question} />;
 }
 
 /** Read-only terminal state (`closed` / `cancelled`) with a return-to-courses link. */

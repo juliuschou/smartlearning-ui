@@ -1374,3 +1374,154 @@ Backend working tree (uncommitted, on top of `305ec9b`) implements the three CP0
 ### Checkpoint disposition
 
 - CP5 實作與 static/unit/build/discovery 驗證完成。**Real-backend browser acceptance 維持 BLOCKED**（`FE41_*` fixtures 未提供、無 live backend/frontend），非 real-E2E 成功。依計畫「執行規則」，此處 **Hard stop**：等待使用者提供隔離 fixture 並授權執行真實 Playwright spec，或確認以 static 驗證作為 CP5 收尾。未 commit、未 push、未勾 WBS。
+
+## 2026-09-04 — FE-4.2 Poll Single CP0 Dependency 與 baseline readiness
+
+### Goal and acceptance criteria
+
+- [x] 讀取並遵守 `FE-4.2 Poll Single 實作計畫.md` 的 CP0–CP5 checkpoint boundary；本次只執行 CP0，未修改產品碼、未進入 CP1。
+- [x] 在 task log 建立 acceptance、CP approval table、risk/rollback、dependencies/environment、working notes/results placeholders；保留歷史 FE-4.1 blocked 紀錄，並以 dated addendum 說明 `987bb31`、`fd0cdad` 已 supersede 舊 blocked closeout。
+- [x] 後端 focused contract tests 通過：submission、same-key replay、`SUBMISSION_CONFLICT`、formal UUID canonicalization、participant reveal/privacy。
+- [x] 前端 FE-4.1 targeted baseline、typegen/typecheck/lint、diff check 通過。
+
+### CP approval table
+
+| Checkpoint | Status   | Evidence / decision                                                                                        |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| CP0        | **PASS** | FE-4.1 learner baseline repaired and all frontend/backend focused contract checks passed; CP1 not started. |
+| CP1–CP5    | pending  | Must not start before CP0 is accepted by user.                                                             |
+
+### Addendum — FE-4.1 historical blocked record superseded
+
+The older FE-4.1 CP5 blocked record is historical and is not rewritten. Commits `987bb31` and `fd0cdad` supersede the earlier blocked browser-flow record by stabilizing and completing the real-backend acceptance path. This CP0 does not claim a new FE-4.1 browser run and does not alter WBS.
+
+### Risk & Rollback
+
+- **Risk: medium/high** — authenticated submission, first-answer-wins/idempotency, CSRF/Origin, and participant result privacy; no schema migration is planned.
+- **Rollback:** CP0 changed only this task record. Remove this FE-4.2 section if the plan is withdrawn; do not reset FE-4.1 product/test files or sibling backend state.
+- **Stop-the-line:** any contract mismatch, failed focused baseline, unavailable DB, or need for mock/placeholder blocks CP0.
+
+### Dependencies & Environment
+
+- Node 24+ (observed Node `v26.5.1` in backend verification), Next.js 16.3.1, React 19, Vitest, Playwright, existing API client, and migrated backend test DB.
+- Backend source/test repository: `/home/user/projects/smartLearning/smartLearning-backend`; UI origin/API and browser fixtures are not needed for CP0.
+- No mock/placeholder/runtime fallback is permitted. CP5 real browser remains a later gated checkpoint.
+
+### Working notes
+
+- Backend source inspection confirms `POST /api/v1/live-sessions/:id/submissions` accepts `sessionQuestionId` plus `selectedOptionRefs`; `Idempotency-Key` is required by the live submission flow, and returned canonical option identity is formal UUID-based.
+- Participant result tests explicitly cover submitted participant open aggregate (`200`), non-submitted open gate (`409 RESULTS_NOT_REVEALED`), and closed aggregate (`200`); poll single e2e covers first submission (`201`), same-key replay (`201`, same submission ID), and incompatible replay (`409 SUBMISSION_CONFLICT`).
+- `test/learner-live-route.test.tsx` was stale: it required the terminal-only `返回我的課程` link during the initial authoritative snapshot loading render. The regression assertion now checks the valid loading state instead; no production behavior was changed.
+- Backend source/test inspection confirms the required UUID and privacy contracts; no backend files were changed.
+
+### Results — CP0 PASS (2026-09-04)
+
+- **Status:** **PASS**. FE-4.1 baseline failure was repaired in `test/learner-live-route.test.tsx`; CP1–CP5 were not started.
+- **Frontend verification:** targeted FE-4.1 suite → **6 files / 90 tests passed, 0 failed, 0 skipped**. `npx next typegen` → PASS; `npm run typecheck` → PASS; `npm run lint:check` → PASS with 0 errors and 5 pre-existing warnings; targeted Prettier and `git diff --check` → PASS.
+- **Backend verification:** `NODE_ENV=test npm run prisma:migrate:status` → PASS, 15 migrations up to date. Poll Single e2e → **1/1 PASS**; submission integration → **8/8 PASS**; live-session results → first run 8/11 passed with intermittent auto-close error, repeat **11/11 PASS**; participant-account privacy/reveal e2e → **10/10 PASS**. No tests were skipped.
+- **Scope:** changed only `test/learner-live-route.test.tsx` and this task record; no production source, backend source, env, dependency, DB schema, WBS, commit, or push changes.
+- **Decision:** CP0 is complete and verified. Hard stop now; wait for explicit user confirmation before beginning CP1.
+
+## 2026-09-04 — FE-4.2 Poll Single CP1 renderer 與 single-choice state
+
+### Goal and acceptance criteria
+
+- [x] 新增 native `fieldset`/radio Poll Single renderer；以 question ID 分組，option UUID 作為 key/value/selection identity。
+- [x] 僅 `snapshotType === "poll"` 且 `snapshotSelectionMode === "single"`、option IDs 合法且唯一時提供作答控制；unsupported/malformed 題目 fail closed 為唯讀提示。
+- [x] 未選答案時 submit disabled；local state 一次只保留一項；不呼叫 API、不 optimistic 標記 submitted。
+- [x] `hasSubmitted === true` 由 authoritative snapshot 驅動 read-only；不顯示 correctness、teacher counts 或 controls。
+- [x] 既有 learner waiting/terminal/access-loss/manual refresh 行為保持不變。
+
+### Checkpoint status
+
+- [x] CP1 — implementation and focused verification complete (2026-09-04).
+- [ ] CP2–CP5 — pending; require explicit user confirmation.
+
+### Risk & Rollback
+
+- **Risk: medium** — learner answer controls and UUID identity boundary; no backend/API/schema/DB/dependency changes.
+- **Rollback:** remove `PollSingleQuestion`, its learner delegation, focused tests, and this CP1 task section. Preserve FE-4.1 route/entry/join/snapshot/access behavior and the CP0 route-test correction.
+- No submission, retry, result, realtime, anonymous participant, or teacher-cache behavior was introduced.
+
+### Dependencies & Environment
+
+- Node 24+, Next.js 16.3.1, React 19, Vitest, existing participant snapshot types and API client.
+- CP1 is frontend-only and does not require live backend fixtures; CP0 backend contract evidence remains the authority for later CP2–CP5.
+
+### Working notes
+
+- Existing `SessionQuestion`/`SessionQuestionOption` types were reused; `lib/api/types.ts`, API hooks, query keys, and client transport were not changed.
+- Backend `option.id` is the formal UUID identity. The CP1 renderer intentionally does not use `optionRef`, text, or index for DOM identity or local selection.
+- The existing FE-4.1 fixture used placeholder `opt-1`; it was updated in the learner-view test fixture to a UUID-shaped value so the integration test exercises the supported Poll Single path.
+- `onSubmit` is an optional UI callback boundary only; LearnerLiveSessionView does not connect it to transport in CP1.
+
+### Results — CP1 PASS (2026-09-04)
+
+- **What changed:** added `features/live-student/PollSingleQuestion.tsx`; delegated learner open questions from `LearnerLiveSessionView.tsx`; added focused `test/poll-single-question.test.tsx`; updated learner-view regression assertions for CP1's local disabled submit control.
+- **Behavior:** valid poll-single questions render ordered native radios and local single selection; malformed/unsupported question data renders read-only prompt/options with no radio or submit; authoritative submitted state disables the group and submit.
+- **Verification:** `npm test -- --run test/poll-single-question.test.tsx test/learner-live-session-view.test.tsx` → **2 files / 32 tests passed, 0 failed, 0 skipped**; `npm run typecheck` → PASS; `npm run lint:check` → PASS with 0 errors and 5 existing warnings; targeted Prettier → PASS; `git diff --check` → PASS.
+- **Scope:** changed only `features/live-student/PollSingleQuestion.tsx`, `features/live-student/LearnerLiveSessionView.tsx`, `test/poll-single-question.test.tsx`, `test/learner-live-session-view.test.tsx`, plus this task record. No API mutation, retry/storage, result query, realtime, route, backend, env, dependency, WBS, commit, or push changes.
+- **Decision:** CP1 is complete and verified. Hard stop now; wait for explicit user confirmation before beginning CP2.
+
+## 2026-09-04 — FE-4.2 Poll Single CP2 首次 authoritative submission 與 mutation security
+
+### Goal and acceptance criteria
+
+- [x] 新增精確 `CreateSubmissionPayload` / `SubmissionDto` wire types。
+- [x] `apiRequest` 僅接受窄化的 `idempotencyKey` option，仍由 client 擁有 Origin、CSRF、Accept、Content-Type 與 credentials。
+- [x] 新增 poll-single mutation：`POST /live-sessions/:id/submissions`、`mutate:true`、`retry:false`、body 僅一個 formal option UUID，無 optimistic cache write。
+- [x] click 時建立一次 logical attempt key；pending 時鎖定 radio/submit；201 canonical response 僅在 question ID、單一 UUID 且存在於 snapshot option set 時進入 submitted。
+- [x] 保留 malformed/stale response fail-closed，不顯示成功或覆寫答案。
+
+### Risk & Rollback
+
+- **Risk: medium/high** — authenticated submission、Idempotency-Key、CSRF/Origin 與 canonical UUID boundary；無 backend/schema/DB/dependency 變更。
+- **Rollback:** 僅撤回 CP2 的 `client.ts` header option、submission types/hook、PollSingle wiring/tests 與本 task section；保留 FE-4.1 與 CP1 baseline。
+
+### Working notes
+
+- Caller cannot pass arbitrary headers: only `idempotencyKey` is exposed; security-owned headers remain generated centrally.
+- `onSubmit` remains an observation callback and receives only the server canonical option UUID after validated success.
+- Existing CP1 direct renderer tests now use a local QueryClient provider because submission is a real React Query mutation boundary.
+
+### Results — CP2 PASS (2026-09-04)
+
+- **What changed:** added submission wire types and `useSubmitPollSingle`; extended `apiRequest` with the narrow `idempotencyKey` option; connected `PollSingleQuestion` to a real mutation with UUID idempotency key, pending lock, canonical response validation, and no optimistic submitted state.
+- **Verification:** targeted `npm test -- --run test/poll-single-question.test.tsx test/learner-live-session-view.test.tsx test/participant-live-sessions-api.test.tsx` → **3 files / 42 tests passed, 0 failed, 0 skipped**; `npm run typecheck` → PASS; `npm run lint:check` → PASS (0 errors, 5 pre-existing warnings); targeted Prettier and `git diff --check` → PASS.
+- **Scope:** CP2 changed only `lib/api/client.ts`, `lib/api/types.ts`, `lib/api/participant-live-sessions.ts`, `features/live-student/PollSingleQuestion.tsx`, `test/poll-single-question.test.tsx`, and this task record. No retry/storage helper, result query, realtime, route, backend, env, dependency, WBS, commit, or push changes.
+- **Decision:** CP2 complete and verified. Hard stop now; CP3 durable idempotency/retry/conflict must not start without explicit user confirmation.
+
+## 2026-09-04 — FE-4.2 Poll Single CP3 durable idempotency、retry 與 conflict
+
+### Results — CP3 PASS
+
+- **What changed:** added versioned question-scoped `sessionStorage` attempts with formal option UUID, payload/option-set fingerprints, and stable idempotency key; persisted before dispatch; retries replay the exact attempt; stale/mismatched records are removed; success requires HTTP 201 plus canonical response validation; errors remain unresolved and visible through `ErrorAlert`.
+- **Behavior:** first-answer-wins is preserved across reloads and uncertain responses; storage failure fails closed without dispatch; `SUBMISSION_CONFLICT` and transport/malformed responses do not claim success; only canonical 201 clears the attempt.
+- **Verification:** targeted `npx vitest run test/poll-submission-attempt.test.ts test/poll-single-question.test.tsx` → **2 files / 10 tests passed**; `npm run typecheck` → PASS; `npm run lint:check` → PASS with 0 errors and 5 existing warnings; targeted Prettier check → PASS; `npm run build` → PASS; `git diff --check` → PASS.
+- **Scope:** CP3 only; no backend, realtime, polling, result queries, WBS, commit, or push. The repository has no `format:check` npm script, so Prettier was run directly.
+- **Decision:** CP3 is complete. Hard stop before CP4; wait for explicit user confirmation before starting CP4.
+
+## 2026-09-04 — FE-4.2 Poll Single CP4 participant results and UUID reconciliation
+
+### Results — CP4 PASS (static/unit; CP5 deferred)
+
+- **What changed:** added participant-isolated `results(liveSessionId, sessionQuestionId)` query keys and result GET hook with forwarded `AbortSignal`, `retry:false`, no polling, and explicit/submitted enablement; extended `PollSingleQuestion` with gated/loading/error/open/closed anonymous aggregate states, UUID-based reconciliation, manual `更新結果`, and fail-closed malformed result handling; retained the last server-observed submitted question descriptor for closed terminal rendering in `LearnerLiveSessionView`.
+- **Privacy/invariants:** learner results never use teacher result keys or render correctness, teacher counts/controls, or participant identity. Result failures do not change the authoritative submitted lock. Result option display follows snapshot option order and matches only by formal `optionId`.
+- **Verification:** focused participant/Poll tests → PASS (2 files / 20 tests); learner integration/typecheck → PASS (3 files / 45 tests); `npx next typegen` → PASS; `npm run typecheck` → PASS; `npm run lint:check` → PASS (0 errors, 5 pre-existing warnings); full `npm test` → PASS (33 files / 270 tests); `npm run build` → PASS; targeted Prettier check → PASS; `git diff --check` → PASS.
+- **Scope:** CP4 frontend transport/UI/tests only. No backend, route, dependency, env, WBS, socket, polling, mock, commit, or push changes. The frontend has no `format:check` script, so targeted Prettier checks were used.
+- **Remaining:** real-backend CP5 Playwright acceptance is not started and remains pending isolated fixtures and explicit authorization. WBS remains unchanged.
+
+### Checkpoint disposition
+
+- CP4 implementation and full frontend static/unit verification are complete. **Hard stop before CP5** pending user confirmation; do not add the CP5 browser spec or run authenticated mutations without that confirmation.
+
+
+## FE-4.2 CP5 browser acceptance addendum (2026-09-05)
+
+- [x] Add `test/browser/fe-4-2-poll-single.spec.ts` with FE42 preflight and isolated actor/aggregate lifecycle.
+- [x] Exercise backend response-loss marker and exact same-key replay through the student request context.
+- [ ] Run the browser scenario with an isolated backend/UI and provisioned FE42_* fixtures.
+
+### Results
+
+The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-bound request, unique fixture, and cleanup conventions. It now probes a real poll submission through the test-only backend response-loss marker and verifies authoritative same-key replay. Full CP5 UI acceptance is not claimed until runtime fixtures are available.

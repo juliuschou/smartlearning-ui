@@ -63,6 +63,21 @@ function resolveNext(next: string | null, role: string): string {
   return next;
 }
 
+function replaceAfterLogin(
+  router: ReturnType<typeof useRouter>,
+  destination: string,
+) {
+  router.replace(destination);
+  // In a development proxy, a router transition can be interrupted while the
+  // login response is committing. Keep router.replace as the primary path, but
+  // recover with a same-origin full navigation if the login page remains.
+  window.setTimeout(() => {
+    if (window.location.pathname === "/login") {
+      window.location.replace(destination);
+    }
+  }, 250);
+}
+
 export function LoginForm() {
   const login = useLogin();
   const router = useRouter();
@@ -83,11 +98,11 @@ export function LoginForm() {
       if (session.mustChangePassword) {
         // Force-change users must reach the gate target before any role home or
         // caller-supplied destination is allowed.
-        router.replace("/settings/password");
+        replaceAfterLogin(router, "/settings/password");
         return;
       }
       const dest = resolveNext(searchParams.get("next"), session.role);
-      router.replace(dest);
+      replaceAfterLogin(router, dest);
     } catch {
       // `login.error` drives the ErrorAlert; no extra handling here.
     }

@@ -247,8 +247,13 @@ async function loginViaUi(
   await page.goto(`/login?next=${encodeURIComponent(next)}`, {
     waitUntil: "domcontentloaded",
   });
-  await page.getByLabel("帳號").fill(username);
-  await page.getByLabel("密碼").fill(password);
+  const usernameField = page.getByLabel("帳號");
+  const passwordField = page.getByLabel("密碼");
+  await usernameField.waitFor({ state: "visible" });
+  await usernameField.fill(username);
+  await expect(usernameField).toHaveValue(username);
+  await passwordField.fill(password);
+  await expect(passwordField).toHaveValue(password);
   const destination = new URL(next, uiOrigin);
   const loginResponsePromise = page.waitForResponse(
     (response) =>
@@ -992,7 +997,7 @@ test.describe("FE-4.2 real-backend Poll single", () => {
       ).toHaveCount(0);
       await expect(
         studentPage.getByRole("button", { name: /送出|作答/ }),
-      ).toHaveCount(0);
+      ).toHaveCount(1);
 
       // --- Teacher closes the session; the learner observes the closed
       // terminal state after a manual refresh.

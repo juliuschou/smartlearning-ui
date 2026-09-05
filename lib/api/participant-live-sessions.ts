@@ -2,17 +2,51 @@ import { queryOptions, useMutation, useQuery } from "@tanstack/react-query";
 import {
   apiRequest,
   apiRequestWithStatus,
-  type ApiRequestError,
+  ApiRequestError,
 } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+import {
+  getAnonymousParticipantCredential,
+  persistAnonymousParticipantCredential,
+  type AnonymousParticipantJoinReceipt,
+} from "@/lib/live/anonymous-participant-credential";
 import type {
   CreateSubmissionPayload,
   JoinLiveSessionResponse,
   ParticipantLiveSessionSnapshot,
   StudentLiveSessionStatus,
   SubmissionDto,
+  ParticipantActor,
   SessionQuestionResults,
 } from "@/lib/api/types";
+
+const STUDENT_ACTOR: ParticipantActor = { kind: "student" };
+
+function anonymousAuth(
+  actor: Extract<ParticipantActor, { kind: "anonymous" }>,
+) {
+  const credential = getAnonymousParticipantCredential(actor.liveSessionId);
+  if (!credential || credential.sessionCode !== actor.sessionCode) {
+    throw new ApiRequestError(
+      {
+        code: "ANONYMOUS_CREDENTIAL_MISSING",
+        message: "匿名參與憑證不存在。",
+        blocking: true,
+      },
+      0,
+    );
+  }
+  return {
+    kind: "anonymous-participant" as const,
+    participantToken: credential.participantToken,
+  };
+}
+
+function participantAuth(actor: ParticipantActor) {
+  return actor.kind === "anonymous"
+    ? anonymousAuth(actor)
+    : { kind: "session" as const };
+}
 
 /**
  * FE-4.1 — student (learner) entry/join transport.
@@ -50,11 +84,91 @@ export interface JoinLiveSessionVariables {
  * Origin. Returns the server-authoritative `liveSession`; the frontend never
  * stores `participantToken` (it is `null` for account joins).
  */
+export interface AnonymousJoinVariables {
+  sessionCode: string;
+  displayName: string;
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-7][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateAnonymousJoinResponse(
+  response: JoinLiveSessionResponse,
+): AnonymousParticipantJoinReceipt {
+  if (
+    !UUID_PATTERN.test(response.liveSession.id) ||
+    typeof response.liveSession.sessionCode !== "string" ||
+    response.liveSession.sessionCode.trim().length === 0 ||
+    typeof response.participantToken !== "string" ||
+    response.participantToken.trim().length === 0
+  ) {
+    throw new ApiRequestError(
+      {
+        code: "INTERNAL_ERROR",
+        message: "伺服器回應格式錯誤。",
+        blocking: true,
+      },
+      0,
+    );
+  }
+
+  const receipt = persistAnonymousParticipantCredential({
+    liveSessionId: response.liveSession.id,
+    sessionCode: response.liveSession.sessionCode,
+    participantToken: response.participantToken,
+  });
+  if (!receipt) {
+    throw new ApiRequestError(
+      {
+        code: "STORAGE_UNAVAILABLE",
+        message: "無法保存匿名參與憑證。",
+        blocking: true,
+      },
+      0,
+    );
+  }
+  return receipt;
+}
+
+/** Join a live session anonymously and return only a token-free receipt. */
+export function useJoinAnonymousLiveSession() {
+  return useMutation<
+    AnonymousParticipantJoinReceipt,
+    ApiRequestError,
+    AnonymousJoinVariables
+  >({
+    mutationFn: async ({ sessionCode, displayName }) => {
+      const response = await apiRequestWithStatus<JoinLiveSessionResponse>(
+        `/live-sessions/${encodeSessionCodePath(sessionCode)}/join`,
+        {
+          method: "POST",
+          body: { displayName },
+          mutate: true,
+          auth: { kind: "anonymous-join" },
+        },
+      );
+      if (response.status !== 201) {
+        throw new ApiRequestError(
+          {
+            code: "INTERNAL_ERROR",
+            message: "伺服器回應格式錯誤。",
+            blocking: true,
+          },
+          response.status,
+        );
+      }
+      return validateAnonymousJoinResponse(response.data);
+    },
+    retry: false,
+  });
+}
+
 export interface SubmitPollSingleVariables {
   liveSessionId: string;
   sessionQuestionId: string;
   optionId: string;
   idempotencyKey: string;
+  actor?: ParticipantActor;
 }
 
 /** Submit one formal option UUID; retries are caller-controlled. */
@@ -69,6 +183,7 @@ export function useSubmitPollSingle() {
       sessionQuestionId,
       optionId,
       idempotencyKey,
+      actor = STUDENT_ACTOR,
     }) =>
       apiRequestWithStatus<SubmissionDto>(
         `/live-sessions/${liveSessionId}/submissions`,
@@ -80,6 +195,7 @@ export function useSubmitPollSingle() {
           } satisfies CreateSubmissionPayload,
           mutate: true,
           idempotencyKey,
+          auth: participantAuth(actor),
         },
       ),
     retry: false,
@@ -92,11 +208,23 @@ export function useJoinLiveSession() {
     ApiRequestError,
     JoinLiveSessionVariables
   >({
-    mutationFn: ({ sessionCode }) =>
-      apiRequest<JoinLiveSessionResponse>(
+    mutationFn: async ({ sessionCode }) => {
+      const response = await apiRequest<JoinLiveSessionResponse>(
         `/live-sessions/${encodeSessionCodePath(sessionCode)}/join`,
-        { method: "POST", body: {}, mutate: true },
-      ),
+        { method: "POST", body: {}, mutate: true, auth: { kind: "session" } },
+      );
+      if (response.participantToken !== null) {
+        throw new ApiRequestError(
+          {
+            code: "INTERNAL_ERROR",
+            message: "伺服器回應格式錯誤。",
+            blocking: true,
+          },
+          0,
+        );
+      }
+      return response;
+    },
   });
 }
 
@@ -107,26 +235,36 @@ export function useJoinLiveSession() {
  * participant-specific query key so it can never collide with the teacher
  * detail projection.
  */
-export function participantSnapshotQueryOptions(id: string) {
+export function participantSnapshotQueryOptions(
+  id: string,
+  actor: ParticipantActor = STUDENT_ACTOR,
+) {
   return queryOptions<ParticipantLiveSessionSnapshot, ApiRequestError>({
-    queryKey: queryKeys.participantLiveSessions.snapshot(id),
+    queryKey: queryKeys.participantLiveSessions.snapshot(actor.kind, id),
     queryFn: ({ signal }) =>
       apiRequest<ParticipantLiveSessionSnapshot>(
         `/live-sessions/${id}/snapshot`,
         {
           signal,
+          auth: participantAuth(actor),
         },
       ),
-    enabled: Boolean(id),
+    enabled:
+      Boolean(id) &&
+      (actor.kind === "student" ||
+        Boolean(actor.liveSessionId && actor.sessionCode)),
     retry: false,
     staleTime: 30_000,
   });
 }
 
 /** Fetch the participant-safe learner snapshot for one live session. */
-export function useParticipantSnapshot(id: string) {
+export function useParticipantSnapshot(
+  id: string,
+  actor: ParticipantActor = STUDENT_ACTOR,
+) {
   return useQuery<ParticipantLiveSessionSnapshot, ApiRequestError>({
-    ...participantSnapshotQueryOptions(id),
+    ...participantSnapshotQueryOptions(id, actor),
   });
 }
 
@@ -165,18 +303,26 @@ export function participantResultsQueryOptions(
   liveSessionId: string,
   sessionQuestionId: string,
   enabled = false,
+  actor: ParticipantActor = STUDENT_ACTOR,
 ) {
   return queryOptions<SessionQuestionResults, ApiRequestError>({
     queryKey: queryKeys.participantLiveSessions.results(
+      actor.kind,
       liveSessionId,
       sessionQuestionId,
     ),
     queryFn: ({ signal }) =>
       apiRequest<SessionQuestionResults>(
         `/live-sessions/${liveSessionId}/questions/${sessionQuestionId}/results`,
-        { signal },
+        { signal, auth: participantAuth(actor) },
       ),
-    enabled: Boolean(liveSessionId && sessionQuestionId && enabled),
+    enabled: Boolean(
+      liveSessionId &&
+      sessionQuestionId &&
+      enabled &&
+      (actor.kind === "student" ||
+        Boolean(actor.liveSessionId && actor.sessionCode)),
+    ),
     retry: false,
     staleTime: 30_000,
   });
@@ -186,12 +332,14 @@ export function useParticipantResults(
   liveSessionId: string,
   sessionQuestionId: string,
   enabled = false,
+  actor: ParticipantActor = STUDENT_ACTOR,
 ) {
   return useQuery<SessionQuestionResults, ApiRequestError>({
     ...participantResultsQueryOptions(
       liveSessionId,
       sessionQuestionId,
       enabled,
+      actor,
     ),
   });
 }

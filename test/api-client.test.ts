@@ -157,6 +157,97 @@ describe("apiRequest transport boundary", () => {
     });
   });
 
+  it("sends an anonymous join mutation without CSRF or participant token", async () => {
+    fetchMock.mockResolvedValueOnce(
+      successResponse({ id: "participant-1" }, 201),
+    );
+
+    await apiRequest("/live-sessions/ABCD2345/join", {
+      method: "POST",
+      body: { displayName: "Learner" },
+      mutate: true,
+      auth: { kind: "anonymous-join" },
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.credentials).toBe("include");
+    expect(init.headers).toMatchObject({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Origin: window.location.origin,
+    });
+    expect(init.headers).not.toHaveProperty("X-CSRF-Token");
+    expect(init.headers).not.toHaveProperty("X-Participant-Token");
+  });
+
+  it("sends anonymous participant and idempotency headers without CSRF", async () => {
+    fetchMock.mockResolvedValueOnce(
+      successResponse({ id: "submission-1" }, 201),
+    );
+
+    await apiRequest("/live-sessions/session-1/submissions", {
+      method: "POST",
+      body: {
+        sessionQuestionId: "question-1",
+        selectedOptionRefs: ["option-1"],
+      },
+      mutate: true,
+      idempotencyKey: "idempotency-1",
+      auth: {
+        kind: "anonymous-participant",
+        participantToken: "participant-secret",
+      },
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers).toMatchObject({
+      Origin: window.location.origin,
+      "Idempotency-Key": "idempotency-1",
+      "X-Participant-Token": "participant-secret",
+    });
+    expect(init.headers).not.toHaveProperty("X-CSRF-Token");
+  });
+
+  it("rejects an empty anonymous participant token before fetch", async () => {
+    await expect(
+      apiRequest("/live-sessions/session-1/snapshot", {
+        auth: { kind: "anonymous-participant", participantToken: "  " },
+      }),
+    ).rejects.toMatchObject({
+      code: "ANONYMOUS_CREDENTIAL_MISSING",
+      status: 0,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not include participant token in transport errors", async () => {
+    fetchMock.mockResolvedValueOnce(
+      responseFor(
+        {
+          data: null,
+          meta,
+          error: {
+            code: "UNAUTHORIZED",
+            message: "not authorized",
+            blocking: true,
+          },
+        },
+        401,
+      ),
+    );
+
+    const error = await apiRequest("/live-sessions/session-1/snapshot", {
+      auth: {
+        kind: "anonymous-participant",
+        participantToken: "participant-secret",
+      },
+    }).catch((value) => value);
+
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(String(error)).not.toContain("participant-secret");
+    expect(JSON.stringify(error)).not.toContain("participant-secret");
+  });
+
   it("sends a bodyless enrollment DELETE with credentials, Origin, CSRF, and null unwrap", async () => {
     fetchMock.mockResolvedValueOnce(successResponse(null, 200));
 

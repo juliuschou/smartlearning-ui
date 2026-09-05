@@ -44,6 +44,8 @@ const MESSAGES: Record<string, string> = {
   // Transport
   NETWORK_ERROR: "無法連線到伺服器，請稍後再試。",
   INTERNAL_ERROR: "伺服器發生問題，請稍後再試。",
+  ANONYMOUS_CREDENTIAL_MISSING: "匿名參與憑證不存在，請重新加入課堂。",
+  STORAGE_UNAVAILABLE: "目前無法保存匿名參與狀態，請稍後再試。",
 };
 
 const GENERIC_MESSAGE = "發生未預期的錯誤，請稍後再試。";

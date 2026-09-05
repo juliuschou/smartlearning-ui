@@ -14,6 +14,7 @@ import {
   useStudentStatus,
 } from "@/lib/api/participant-live-sessions";
 import { queryKeys } from "@/lib/api/query-keys";
+import { persistAnonymousParticipantCredential } from "@/lib/live/anonymous-participant-credential";
 import { ApiRequestError } from "@/lib/api/client";
 import type {
   JoinLiveSessionResponse,
@@ -129,6 +130,7 @@ describe("Join live session mutation (CP1)", () => {
       method: "POST",
       body: {},
       mutate: true,
+      auth: { kind: "session" },
     });
     expect(result.current.data).toEqual(response);
     // The frontend never synthesizes a participant token.
@@ -180,7 +182,7 @@ describe("Participant snapshot query (CP1)", () => {
     expect(apiRequestMock).toHaveBeenCalledTimes(1);
     expect(apiRequestMock).toHaveBeenCalledWith(
       "/live-sessions/session-1/snapshot",
-      { signal: expect.any(AbortSignal) },
+      { signal: expect.any(AbortSignal), auth: { kind: "session" } },
     );
     expect(result.current.data?.sessionQuestions).toHaveLength(1);
     expect(result.current.data?.sessionQuestions[0].hasSubmitted).toBe(false);
@@ -189,7 +191,7 @@ describe("Participant snapshot query (CP1)", () => {
     expect(result.current.data).not.toHaveProperty("joinedCount");
     expect(result.current.data).not.toHaveProperty("votedCount");
     expect(participantSnapshotQueryOptions("session-1").queryKey).toEqual(
-      queryKeys.participantLiveSessions.snapshot("session-1"),
+      queryKeys.participantLiveSessions.snapshot("student", "session-1"),
     );
   });
 
@@ -291,27 +293,92 @@ describe("Participant results query (CP4)", () => {
     await waitFor(() => expect(enabled.result.current.data).toEqual(result));
     expect(apiRequestMock).toHaveBeenCalledWith(
       "/live-sessions/session-1/questions/sq-1/results",
-      { signal: expect.any(AbortSignal) },
+      { signal: expect.any(AbortSignal), auth: { kind: "session" } },
     );
     expect(
       participantResultsQueryOptions("session-1", "sq-1", true).queryKey,
-    ).toEqual(queryKeys.participantLiveSessions.results("session-1", "sq-1"));
+    ).toEqual(
+      queryKeys.participantLiveSessions.results("student", "session-1", "sq-1"),
+    );
     expect(
       participantResultsQueryOptions("session-1", "sq-1", true).queryKey,
     ).not.toEqual(queryKeys.liveSessions.results("session-1", "sq-1"));
   });
 });
 
+describe("Anonymous actor boundary (CP4)", () => {
+  const liveSessionId = "11111111-1111-7111-8111-111111111111";
+
+  it("isolates anonymous keys and fails closed without a credential", async () => {
+    const studentKey = queryKeys.participantLiveSessions.snapshot(
+      "student",
+      liveSessionId,
+    );
+    const anonymousKey = queryKeys.participantLiveSessions.snapshot(
+      "anonymous",
+      liveSessionId,
+    );
+    expect(anonymousKey).not.toEqual(studentKey);
+    expect(anonymousKey.join(" ")).not.toContain("token");
+
+    const queryClient = makeQueryClient();
+    const { result } = renderHook(
+      () =>
+        useParticipantSnapshot(liveSessionId, {
+          kind: "anonymous",
+          liveSessionId,
+          sessionCode: "ABCD1234",
+        }),
+      { wrapper: wrapperFor(queryClient) },
+    );
+
+    await waitFor(() =>
+      expect(result.current.error?.code).toBe("ANONYMOUS_CREDENTIAL_MISSING"),
+    );
+    expect(apiRequestMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the scoped credential for anonymous snapshot requests", async () => {
+    persistAnonymousParticipantCredential({
+      liveSessionId,
+      sessionCode: "ABCD1234",
+      participantToken: "test-token",
+    });
+    apiRequestMock.mockResolvedValueOnce(snapshot({ id: liveSessionId }));
+
+    const queryClient = makeQueryClient();
+    const { result } = renderHook(
+      () =>
+        useParticipantSnapshot(liveSessionId, {
+          kind: "anonymous",
+          liveSessionId,
+          sessionCode: "ABCD1234",
+        }),
+      { wrapper: wrapperFor(queryClient) },
+    );
+    await waitFor(() => expect(result.current.data?.id).toBe(liveSessionId));
+    expect(apiRequestMock).toHaveBeenCalledWith(
+      `/live-sessions/${liveSessionId}/snapshot`,
+      expect.objectContaining({
+        auth: { kind: "anonymous-participant", participantToken: "test-token" },
+      }),
+    );
+  });
+});
+
 describe("Cache separation from teacher detail (CP1)", () => {
   it("uses a distinct participant query key that never collides with teacher detail", () => {
-    expect(queryKeys.participantLiveSessions.snapshot("session-1")).toEqual([
+    expect(
+      queryKeys.participantLiveSessions.snapshot("student", "session-1"),
+    ).toEqual([
       "participant-live-sessions",
+      "student",
       "session-1",
       "snapshot",
     ]);
-    expect(queryKeys.participantLiveSessions.snapshot("session-1")).not.toEqual(
-      queryKeys.liveSessions.detail("session-1"),
-    );
+    expect(
+      queryKeys.participantLiveSessions.snapshot("student", "session-1"),
+    ).not.toEqual(queryKeys.liveSessions.detail("session-1"));
     expect(queryKeys.participantLiveSessions.all).toEqual([
       "participant-live-sessions",
     ]);

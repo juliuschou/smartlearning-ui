@@ -73,6 +73,11 @@ export interface ChangePasswordPayload {
   newPassword: string;
 }
 
+/** Participant transport actor; bearer material stays outside this descriptor. */
+export type ParticipantActor =
+  | { kind: "student" }
+  | { kind: "anonymous"; liveSessionId: string; sessionCode: string };
+
 /** `POST /live-sessions/:id/submissions` request body for a poll answer. */
 export interface CreateSubmissionPayload {
   sessionQuestionId: string;

@@ -1,9 +1,11 @@
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
+export type PollSubmissionActor = "student" | "anonymous";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-7][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface PollSubmissionAttempt {
-  version: 1;
+  version: 2;
+  actorKind: PollSubmissionActor;
   liveSessionId: string;
   sessionQuestionId: string;
   optionId: string;
@@ -12,8 +14,12 @@ export interface PollSubmissionAttempt {
   idempotencyKey: string;
 }
 
-function storageKey(liveSessionId: string, sessionQuestionId: string) {
-  return `smartlearning:v${STORAGE_VERSION}:poll-single:${liveSessionId}:${sessionQuestionId}`;
+function storageKey(
+  actorKind: PollSubmissionActor,
+  liveSessionId: string,
+  sessionQuestionId: string,
+) {
+  return `smartlearning:v${STORAGE_VERSION}:poll-single:${actorKind}:${liveSessionId}:${sessionQuestionId}`;
 }
 
 export function pollPayloadFingerprint(
@@ -35,7 +41,8 @@ function validate(record: unknown): PollSubmissionAttempt | null {
   if (!record || typeof record !== "object") return null;
   const value = record as Record<string, unknown>;
   if (
-    value.version !== 1 ||
+    value.version !== STORAGE_VERSION ||
+    (value.actorKind !== "student" && value.actorKind !== "anonymous") ||
     typeof value.liveSessionId !== "string" ||
     typeof value.sessionQuestionId !== "string" ||
     typeof value.optionId !== "string" ||
@@ -57,10 +64,11 @@ export function getPollSubmissionAttempt(
   liveSessionId: string,
   sessionQuestionId: string,
   currentOptionIds?: string[],
+  actorKind: PollSubmissionActor = "student",
 ): PollSubmissionAttempt | null {
   try {
     const raw = window.sessionStorage.getItem(
-      storageKey(liveSessionId, sessionQuestionId),
+      storageKey(actorKind, liveSessionId, sessionQuestionId),
     );
     if (!raw) return null;
     const record = validate(JSON.parse(raw));
@@ -69,14 +77,14 @@ export function getPollSubmissionAttempt(
       record.liveSessionId !== liveSessionId ||
       record.sessionQuestionId !== sessionQuestionId
     ) {
-      removePollSubmissionAttempt(liveSessionId, sessionQuestionId);
+      removePollSubmissionAttempt(liveSessionId, sessionQuestionId, actorKind);
       return null;
     }
     if (
       currentOptionIds &&
       record.optionSetFingerprint !== optionSetFingerprint(currentOptionIds)
     ) {
-      removePollSubmissionAttempt(liveSessionId, sessionQuestionId);
+      removePollSubmissionAttempt(liveSessionId, sessionQuestionId, actorKind);
       return null;
     }
     return record;
@@ -90,7 +98,11 @@ export function persistPollSubmissionAttempt(
 ): boolean {
   try {
     window.sessionStorage.setItem(
-      storageKey(attempt.liveSessionId, attempt.sessionQuestionId),
+      storageKey(
+        attempt.actorKind,
+        attempt.liveSessionId,
+        attempt.sessionQuestionId,
+      ),
       JSON.stringify(attempt),
     );
     return true;
@@ -102,10 +114,11 @@ export function persistPollSubmissionAttempt(
 export function removePollSubmissionAttempt(
   liveSessionId: string,
   sessionQuestionId: string,
+  actorKind: PollSubmissionActor = "student",
 ): void {
   try {
     window.sessionStorage.removeItem(
-      storageKey(liveSessionId, sessionQuestionId),
+      storageKey(actorKind, liveSessionId, sessionQuestionId),
     );
   } catch {
     /* unavailable */
@@ -117,6 +130,7 @@ export function createPollSubmissionAttempt(
   sessionQuestionId: string,
   optionId: string,
   optionIds: string[],
+  actorKind: PollSubmissionActor = "student",
 ): PollSubmissionAttempt | null {
   if (
     ![liveSessionId, sessionQuestionId, optionId].every(validUuid) ||
@@ -124,7 +138,8 @@ export function createPollSubmissionAttempt(
   )
     return null;
   return {
-    version: 1,
+    version: 2,
+    actorKind,
     liveSessionId,
     sessionQuestionId,
     optionId,

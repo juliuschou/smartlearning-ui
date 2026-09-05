@@ -39,10 +39,9 @@ const STATUS_LABELS: Record<LiveSessionStatus, string> = {
  * to the student-only lifecycle receipt (`useStudentStatus`) to distinguish
  * `closed` from `cancelled` — the CP0-confirmed learner terminal-state source.
  *
- * Realtime is FE-4.3, so the only refresh is an explicit "更新課堂狀態" refetch —
- * no polling, no socket, and no realtime claim. No answering control is offered
- * (FE-4.2), and no teacher-only data (counts, controls, unrevealed correctness)
- * is ever rendered.
+ * FE-4.3 realtime events drive lifecycle and question transitions without a
+ * manual refresh. The explicit refresh remains a recovery affordance, and no
+ * teacher-only data (counts, controls, unrevealed correctness) is ever rendered.
  */
 export function LearnerLiveSessionView({
   liveSessionId,
@@ -62,10 +61,15 @@ export function LearnerLiveSessionView({
     setRetainedQuestion(null);
     connection.terminate();
   }, [connection, liveSessionId, queryClient]);
-  useParticipantLiveSessionEvents(liveSessionId, connection, clearProtectedContent);
+  useParticipantLiveSessionEvents(
+    liveSessionId,
+    connection,
+    clearProtectedContent,
+  );
   useEffect(() => {
     if (connection.status === "connected") classifiedDisconnect.current = false;
-    if (connection.status !== "disconnected" || classifiedDisconnect.current) return;
+    if (connection.status !== "disconnected" || classifiedDisconnect.current)
+      return;
     classifiedDisconnect.current = true;
     void snapshot.refetch();
   }, [connection.status, snapshot]);

@@ -44,12 +44,39 @@ export const queryKeys = {
   // with the teacher detail projection in the cache.
   participantLiveSessions: {
     all: ["participant-live-sessions"] as const,
-    session: (id: string) => ["participant-live-sessions", id] as const,
-    snapshot: (id: string) =>
-      ["participant-live-sessions", id, "snapshot"] as const,
+    session: (actorOrId: "student" | "anonymous" | string, id?: string) => {
+      const actor = id === undefined ? "student" : actorOrId;
+      const liveSessionId = id ?? actorOrId;
+      return ["participant-live-sessions", actor, liveSessionId] as const;
+    },
+    snapshot: (actorOrId: "student" | "anonymous" | string, id?: string) => {
+      const actor = id === undefined ? "student" : actorOrId;
+      const liveSessionId = id ?? actorOrId;
+      return [
+        "participant-live-sessions",
+        actor,
+        liveSessionId,
+        "snapshot",
+      ] as const;
+    },
     studentStatus: (id: string) =>
-      ["participant-live-sessions", id, "student-status"] as const,
-    results: (id: string, sessionQuestionId: string) =>
-      ["participant-live-sessions", id, "results", sessionQuestionId] as const,
+      ["participant-live-sessions", "student", id, "student-status"] as const,
+    results: (
+      actorOrId: "student" | "anonymous" | string,
+      idOrQuestionId: string,
+      questionId?: string,
+    ) => {
+      const actor = questionId === undefined ? "student" : actorOrId;
+      const liveSessionId =
+        questionId === undefined ? actorOrId : idOrQuestionId;
+      const sessionQuestionId = questionId ?? idOrQuestionId;
+      return [
+        "participant-live-sessions",
+        actor,
+        liveSessionId,
+        "results",
+        sessionQuestionId,
+      ] as const;
+    },
   },
 } as const;

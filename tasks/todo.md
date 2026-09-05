@@ -927,7 +927,109 @@ Review findings were triaged and the following fixes landed before closeout:
 
 - FE-2.2.9 real-browser acceptance：BLOCKED — 需使用者提供隔離 real backend 與 `FE22_API_BASE / FE22_UI_ORIGIN / FE22_ADMIN_USERNAME / FE22_ADMIN_PASSWORD / FE22_COURSE_NAME_PREFIX`（可選 `FE22_TEACHER_USERNAME / FE22_TEACHER_PASSWORD`，未提供時 spec 自建一次性 teacher）。執行：`node test/browser/run.mjs test/browser/fe-2-2-roster.spec.ts`（先 `npm run dev` 於同 host）。
 - FE-2.2.8 a11y 的鍵盤走查已由單元測試涵蓋 Tab/Enter/Escape 與 aria 標記；screen-reader sanity 留 QA-2.2。
+
+## 2026-09-05 — FE-4.4 Anonymous fallback
+
+### Goal and acceptance criteria
+
+- [ ] FE-4.4.1 公開 `/join` 以 session code + display name 加入，驗證 201、server-returned LiveSession ID/code 與非空 participant token，並以 server ID 導向 `/live/:id`。
+- [ ] FE-4.4.2 participant token 僅存於 versioned、LiveSession-scoped `sessionStorage`；reload 可重連，遺失後不假裝恢復原 participant；token 不進 URL、query/cache/Zustand/log/DOM/cookie/localStorage/analytics。
+- [ ] FE-4.4.3 匿名 snapshot、poll-single submission、result 與 Socket.IO handshake 使用固定 participant-token contract、stable idempotency key、participant-safe projection；學生 Web Session 流程不退化。
+- [ ] FE-4.4.4 以真實 migrated backend 完成 Playwright browser regression，結果必須 `0 failed / 0 skipped`，並覆蓋 privacy、cookie precedence、terminal/access loss、reconnect 與 cleanup。
+
+### Checklist
+
+- [ ] Gate 0 — baseline and scope confirmation
+- [ ] Checkpoint 0 — record baseline, authoritative contracts, dependencies, environment, risks, and existing working-tree diff
+- [ ] Gate 1 — transport
+- [ ] Gate 2 — credential store
+- [ ] Gate 3 — join UI
+- [ ] Gate 4 — REST/cache/poll
+- [ ] Gate 5 — shared participant UI
+- [ ] Gate 6 — anonymous realtime
+- [ ] Gate 7 — browser closeout
+
+### Risk & rollback
+
+- Risk: high（bearer token、auth precedence、realtime、participant-safe privacy、shared cache）。
+- Rollback: 依 checkpoint 移除匿名 route/feature 與 transport wiring；保留已採用的 actor-qualified query key，避免回復後再度 cache collision；不回復既有 `LearnerLiveSessionView.tsx` FE-4.3 working-tree 變更。
+- Stop-the-line：backend/frontend contract mismatch、token leak、student/anonymous cache collision、stale protected content 或任何 test failure 均停在當前 checkpoint，不以後續 checkpoint 掩蓋。
+
+### Dependencies & Environment
+
+- UI repo：`/home/user/projects/smartLearning/smartLearning-ui`；Node 24+、Next.js 16.3.1、React 19、React Query 5、Socket.IO client 4.8.3、Vitest/Playwright。
+- Backend dependencies：BE-1、BE-3、BE-4.1；anonymous join、`X-Participant-Token` snapshot/submission/results、`/live` Socket.IO auth 已具備，仍須以 runtime/OpenAPI/reference 對照。
+- Real browser：same-host UI/API、explicit CORS、Secure `__Host-*` cookie fixture、migrated disposable backend；無 mock/placeholder acceptance。
+
+### Working notes — CP0
+
+- Authoritative WBS: `docs/智學互動平台/00_專案規劃/智學互動平台剩餘工作WBS.md:640-647`。
+- Frontend design baseline: `docs/智學互動平台/50_實作與測試/SPEC F0-F17 前端實作計畫.md:69-83`；F12/F13/F14 明定 sessionStorage token、server snapshot authority、same-key idempotency 與不使用 mock。
+- Next.js 16 guidance verified from `node_modules/next/dist/docs/.../05-server-and-client-components.md`: pages/layouts remain Server Components; browser storage, event handlers and custom hooks stay in narrow Client Components。
+- Current UI primary files: `lib/api/client.ts`（目前僅 idempotency caller header，mutation 自動 CSRF）、`lib/api/participant-live-sessions.ts`（目前 student cookie-only）、`lib/api/query-keys.ts`（participant key 尚未 actor-qualified）、`lib/live/socket-client.ts`（目前 cookie handshake）、`lib/live/use-participant-live-session-events.ts`、`LearnerLiveSessionView.tsx`、`PollSingleQuestion.tsx`、`poll-submission-attempt.ts`。
+- Backend/reference confirms anonymous join returns raw token once; subsequent bearer header is `X-Participant-Token`; Socket.IO namespace is `/live` while browser transport URL is `/socket.io/`; anonymous terminal stale tokens may become `UNAUTHORIZED` after close anonymization; anonymous must not call student-only `/student-status`。
+- Recommended scope is frontend-only: public `/join` and `/live/[liveSessionId]`, explicit actor-aware transport/cache/controller, credential store, anonymous realtime and real-browser acceptance；不加入 FE-5 題型或 backend contract changes。
+- Security decision: retain `credentials: "include"` to preserve backend cookie precedence; never use `credentials: "omit"` as anonymous downgrade workaround; no generic arbitrary headers。
+- Existing working-tree baseline (pre-existing, not authored by FE-4.4): `features/live-student/LearnerLiveSessionView.tsx` has comment update to FE-4.3 realtime behavior and Prettier line wrapping only；must preserve exactly unless current checkpoint explicitly requires a targeted extension。
+
+### CP0 Results — PASS (2026-09-05)
+
+- **Scope:** completed read-only baseline and contract audit; no FE-4.4 product source, tests, routes, dependencies, env, backend, WBS checkbox, or runtime/database state changed.
+- **Baseline:** UI branch `main`; working tree contains only the pre-existing modification `features/live-student/LearnerLiveSessionView.tsx` described above. No commit created.
+- **Contract evidence:** WBS FE-4.4.1–4.4.4 and dependencies BE-1/BE-3/BE-4.1; frontend F12–F14 plan; backend participant controller/guard/service, submission controller/service, live gateway/realtime contract, and frontend API reference were inspected. Backend is ready for anonymous join/token snapshot-submit-result/realtime; frontend gap is the remaining implementation and browser evidence.
+- **Resolved decisions:** anonymous credential uses `sessionStorage`; public URLs are `/join` and `/live/:liveSessionId`; anonymous actor is explicit and never an account fallback; token-bearing transport remains narrowly scoped and retains cookies; anonymous terminal ambiguity fails closed without `/student-status` or login redirect; actor kind must separate query keys and submission attempts.
+- **Verification:** read-only inspection of `tasks/lessons.md`, Next.js 16 Server/Client Components guidance, WBS, frontend plan, backend API reference, relevant frontend transport/live/UI files, and `git diff/status` completed. No product tests were run because CP0 makes no product-code changes; next static/test commands are defined in the FE-4.4 execution plan.
+- **Checkpoint boundary:** CP0 is complete. Stop here for manual Gate 0/CP0 review; do not begin Checkpoint 1 until explicit user confirmation.
+
+### Results
+
+- **What changed:** added this FE-4.4 task record and CP0 evidence only.
+- **Where:** `tasks/todo.md`; authoritative execution plan at `/home/user/projects/smartLearning/docs/智學互動平台/50_實作與測試/FrontEnd4.4/FE-4.4 Anonymous fallback 執行計畫-2026-09-05.md`。
+- **How verified:** read-only contract/baseline inspection; no product-code test execution applicable。
+
+### CP1 — Transport boundary Results (2026-09-05)
+
+- **Status:** PASS; stopped before CP2 and waiting for manual Gate 1 confirmation.
+- **What changed:** added `ApiAuthMode` to `lib/api/client.ts` with explicit `session`, `anonymous-join`, and `anonymous-participant` modes; retained `credentials: "include"`; session mutations still attach CSRF, anonymous modes omit CSRF, anonymous participant attaches only fixed `X-Participant-Token`, and `Idempotency-Key` is independent of CSRF. Empty anonymous token fails before `fetch` with stable `ANONYMOUS_CREDENTIAL_MISSING`.
+- **Types:** added token-free `ParticipantActor` discriminator to `lib/api/types.ts`; no raw token is represented in the actor descriptor.
+- **Tests:** added API-client coverage for anonymous join headers, anonymous participant + idempotency headers, empty-token prefetch rejection, and error non-leakage. No generic arbitrary-header option was introduced.
+- **Scope:** no routes, credential storage, query-key changes, realtime changes, backend changes, env/dependency changes, or WBS checkbox changes. Existing `features/live-student/LearnerLiveSessionView.tsx` working-tree diff remains untouched.
+- **Verification:** `npx prettier --write lib/api/client.ts lib/api/types.ts test/api-client.test.ts` → PASS; `npm test -- test/api-client.test.ts` → PASS (1 file / 12 tests); `npm run typecheck` → PASS; `npm run lint:check` → PASS (0 errors, 8 pre-existing warnings); `git diff --check` → PASS.
+- **Manual Gate 1 review:** inspect the auth-mode/header matrix and confirm cookies remain included, anonymous requests do not use CSRF, participant token is only attached through the fixed header, idempotency remains available without CSRF, and generic headers are still unavailable. Do not start CP2 until explicit confirmation.
 - WBS checkboxes 未勾選（待使用者授權 closeout）。
+
+### CP2 — Participant credential store Results (2026-09-05)
+
+- **Status:** PASS; stopped before CP3 and waiting for manual Gate 2 confirmation.
+- **What changed:** added `lib/live/anonymous-participant-credential.ts` with a versioned `sessionStorage` record keyed by `smartlearning:v1:anonymous-participant:<liveSessionId>`; record stores only version, session ID, canonical session code, and raw participant token.
+- **API boundary:** `persistAnonymousParticipantCredential` validates input, normalizes the code, stores the credential, and returns a token-free `{ liveSessionId, sessionCode }` receipt. `get...` validates and removes malformed/mismatched records; `remove...` is session-scoped; `has...` delegates to validated retrieval. Storage exceptions fail closed.
+- **Security:** invalid IDs/empty code/empty token are rejected; no localStorage, cookie, React Query, Zustand, log, DOM, or analytics integration was added. Token is not returned in the safe receipt.
+- **Tests:** added `test/anonymous-participant-credential.test.ts` covering validated round-trip, session scoping, malformed/mismatched cleanup, invalid input no-write, and removing only the requested session.
+- **Scope:** no API hook integration, routes, query-key changes, realtime changes, backend changes, env/dependency changes, or WBS checkbox changes. Existing `LearnerLiveSessionView.tsx` working-tree diff remains untouched.
+- **Verification:** `npx prettier --write lib/live/anonymous-participant-credential.ts test/anonymous-participant-credential.test.ts` → PASS; `npm test -- test/anonymous-participant-credential.test.ts` → PASS (1 file / 5 tests); `npm run typecheck` → PASS; `npm run lint:check` → PASS (0 errors, 8 pre-existing warnings); `git diff --check` → PASS.
+- **Manual Gate 2 review:** inspect the sessionStorage key/record in DevTools, verify the safe receipt has no token, verify malformed data is removed, and confirm the intended loss-of-token behavior (no identity recovery; rejoin creates a new participant). Do not start CP3 until explicit confirmation.
+
+### CP3 — Public anonymous join UI Results (2026-09-05)
+
+- **Status:** PASS after one test-driven fix; stopped before CP4 and waiting for manual Gate 3 confirmation.
+- **What changed:** added public Server Component route `app/(public)/join/page.tsx` (`/join`) and client form `features/live-student/AnonymousJoinForm.tsx`; form accepts an 8-character code plus display name, performs client UX validation, normalizes code and NFC-trims display name, and navigates with `router.replace` using the server-returned LiveSession ID.
+- **Transport integration:** added `useJoinAnonymousLiveSession` in `lib/api/participant-live-sessions.ts`; it sends `{ displayName }` through `anonymous-join`, requires HTTP 201 and valid server ID/code/nonempty token, persists via the CP2 credential store, and returns only the token-free receipt. Added curated error messages for anonymous credential/storage errors.
+- **Security:** token never reaches the form result, router URL, DOM, or error UI; anonymous join does not add CSRF or participant-token headers and does not perform cookie-omitting downgrade. Server validation remains authoritative for unsafe display names.
+- **Tests:** added `test/anonymous-join-form.test.tsx` for required fields, normalization, safe receipt navigation; existing participant API test suite remained green.
+- **Scope:** no anonymous live route, actor-qualified query keys, snapshot/submit/result integration, Socket.IO changes, backend changes, env/dependency changes, or WBS checkbox changes. Existing `LearnerLiveSessionView.tsx` working-tree diff remains untouched.
+- **Incident/fix:** initial targeted test exposed that `maxLength={8}` prevented whitespace-padded 8-character codes from reaching trim validation; changed the input limit to 32 so UX normalization works while schema still requires 8 normalized characters. Re-run passed.
+- **Verification:** `npx next typegen` → PASS; `npm test -- test/anonymous-join-form.test.tsx test/participant-live-sessions-api.test.tsx` → PASS (2 files / 13 tests); `npm run typecheck` → PASS; `npm run lint:check` → PASS (0 errors, 8 pre-existing warnings); `git diff --check` → PASS.
+- **Manual Gate 3 review:** open `/join`, inspect labels/validation and Network request body/header matrix, confirm no token in URL/DOM, and verify successful navigation uses the server-returned LiveSession ID. Do not start CP4 until explicit confirmation.
+
+### CP4 — Actor-qualified REST, cache, and submission attempts Results (2026-09-05)
+
+- **Status:** PASS; stopped before Checkpoint 5 and waiting for manual Gate 4 confirmation.
+- **What changed:** participant query keys now include a non-secret `student | anonymous` actor segment, with student status explicitly nested under the student subtree. Participant snapshot, result, and poll-single submission transport accept `ParticipantActor`; anonymous requests read the LiveSession-scoped credential immediately before fetch and use only `X-Participant-Token`, while student requests preserve session auth. Student join remains body `{}` and now runtime-validates `participantToken: null`.
+- **Submission attempts:** `poll-submission-attempt.ts` now uses version 2 actor-qualified sessionStorage keys/records. Student and anonymous attempts cannot collide; old unqualified v1 records are ignored; no token is persisted; same-actor idempotency UUID behavior remains unchanged.
+- **Tests:** updated participant API expectations and added anonymous key isolation, missing-credential no-fetch, and credential-bound snapshot coverage. Targeted verification passed: `npm test -- test/participant-live-sessions-api.test.tsx test/poll-submission-attempt.test.ts test/api-client.test.ts` → 3 files / 28 tests, 0 failed, 0 skipped.
+- **Static verification:** `npx next typegen` → PASS; `npm run typecheck` → PASS; `npm run lint:check` → PASS with 0 errors and 8 pre-existing warnings; `git diff --check` → PASS. Vite config-loader and existing React Compiler/exhaustive-deps/browser unused-variable warnings remain non-blocking.
+- **Scope preserved:** no shared participant UI, PollSingleQuestion actor wiring, Socket.IO changes, anonymous live route, backend/API/schema/dependency/env changes, WBS checkbox changes, or changes to the pre-existing FE-4.3 `LearnerLiveSessionView.tsx` diff.
+- **Manual Gate 4 review:** inspect actor-qualified keys for same-ID student/anonymous separation and confirm no token/hash; inspect Network headers for anonymous snapshot/result/submission (`X-Participant-Token`, cookies included, no CSRF, stable `Idempotency-Key` on submission) versus student session/CSRF behavior; verify missing credential performs no fetch and student status remains student-only. Do not start Checkpoint 5 until explicit confirmation.
 
 ### Commit
 

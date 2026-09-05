@@ -36,6 +36,11 @@ export class ApiRequestError extends Error {
   }
 }
 
+export type ApiAuthMode =
+  | { kind: "session" }
+  | { kind: "anonymous-join" }
+  | { kind: "anonymous-participant"; participantToken: string };
+
 type RequestOptions = {
   method?: string;
   body?: unknown;
@@ -44,6 +49,8 @@ type RequestOptions = {
   signal?: AbortSignal;
   /** Narrow caller-controlled header: idempotency only. */
   idempotencyKey?: string;
+  /** Explicit authentication mode; session auth is the compatibility default. */
+  auth?: ApiAuthMode;
 };
 
 /**
@@ -69,6 +76,21 @@ export async function apiRequestWithStatus<T>(
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
   const method = opts.method ?? "GET";
   const isMutation = opts.mutate ?? method !== "GET";
+  const auth = opts.auth ?? { kind: "session" as const };
+
+  if (
+    auth.kind === "anonymous-participant" &&
+    auth.participantToken.trim().length === 0
+  ) {
+    throw new ApiRequestError(
+      {
+        code: "ANONYMOUS_CREDENTIAL_MISSING",
+        message: "匿名參與憑證不存在。",
+        blocking: true,
+      },
+      0,
+    );
+  }
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -78,9 +100,14 @@ export async function apiRequestWithStatus<T>(
   }
   if (isMutation) {
     headers["Origin"] = UI_ORIGIN;
-    const csrf = getCsrfToken();
-    if (csrf) headers[CSRF_HEADER_NAME] = csrf;
-    if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
+    if (auth.kind === "session") {
+      const csrf = getCsrfToken();
+      if (csrf) headers[CSRF_HEADER_NAME] = csrf;
+    }
+  }
+  if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
+  if (auth.kind === "anonymous-participant") {
+    headers["X-Participant-Token"] = auth.participantToken;
   }
 
   let res: Response;

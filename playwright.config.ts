@@ -8,7 +8,14 @@ import { defineConfig } from "playwright/test";
  * own if none is reachable. The backend on 3000 must be up separately
  * (docker-compose stack) — Playwright does not manage it.
  */
-const browserBaseURL = process.env.FE42_UI_ORIGIN ?? "http://localhost:3001";
+const browserBaseURL =
+  process.env.FE44_UI_ORIGIN ??
+  process.env.FE42_UI_ORIGIN ??
+  "http://localhost:3001";
+const apiBaseURL =
+  process.env.FE44_API_BASE ??
+  process.env.FE42_API_BASE ??
+  "http://localhost:3000/api/v1";
 const useHttpsFixture = browserBaseURL.startsWith("https://");
 
 export default defineConfig({
@@ -24,8 +31,8 @@ export default defineConfig({
   },
   webServer: {
     command: useHttpsFixture
-      ? "NEXT_PUBLIC_API_BASE=https://localhost:3444/api/v1 npx next dev --experimental-https --experimental-https-key /tmp/fe42-key.pem --experimental-https-cert /tmp/fe42-cert.pem -p 3443"
-      : `NEXT_PUBLIC_API_BASE=${process.env.FE42_API_BASE ?? "http://localhost:3000/api/v1"} npm run dev`,
+      ? `NEXT_PUBLIC_API_BASE=${apiBaseURL} npx next dev --experimental-https --experimental-https-key /tmp/fe42-key.pem --experimental-https-cert /tmp/fe42-cert.pem -p 3443`
+      : `NEXT_PUBLIC_API_BASE=${apiBaseURL} npm run dev`,
     url: browserBaseURL,
     reuseExistingServer: true,
     ignoreHTTPSErrors: useHttpsFixture,

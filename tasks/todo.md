@@ -1646,3 +1646,28 @@ The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-b
 **Scope:** changed `lib/api/query-keys.ts`, `lib/live/socket-client.ts`, `lib/live/use-participant-live-session-events.ts`, `features/live-student/LearnerAccessState.tsx`, `features/live-student/LearnerLiveSessionView.tsx`, and this task record. No backend, WBS, environment, dependency, or commit changes.
 
 **Known limitation:** CP4 unit/static coverage does not claim real browser revocation, account disable, enrollment removal, or session expiry; those require isolated backend fixtures in CP5.
+
+## FE-4.3 CP5 — 2026-09-05
+
+- [x] Added `test/browser/fe-4-3-participant-realtime.spec.ts` using the existing FE-4.2 isolated browser harness and cleanup model.
+- [x] Removed manual refresh actions from lifecycle assertions; learner transitions are awaited through participant realtime.
+- [x] Added browser assertions for the `/live` connection and absence of participant-token cookies.
+- [ ] Focused real-backend Playwright acceptance — BLOCKED: execution was denied because it mutates backend accounts, courses, enrollments, and live sessions; no disposable backend environment was explicitly authorized in this session.
+- [x] Static verification: Prettier and TypeScript typecheck passed; no production realtime/config/backend changes were made.
+- [x] Documented the disposable browser fixture contract in `test/browser/FE42.env.example`; credentials and the response-loss token remain runtime-only.
+
+**Results:** CP5 browser-spec implementation is present, but FE-4.3 is not closed. The focused browser command was not run after the safety gate denied mutation-capable execution. The spec intentionally uses the existing `FE42_*` fixture/config namespace because `playwright.config.ts` is FE-4.2-specific and CP5 forbids a parallel harness; provisioned acceptance should run it against an isolated disposable backend with `--workers=1`.
+
+**Known limitation:** WBS FE-4.3.1–FE-4.3.5 remains unchecked. Full browser regression, reconnect/recovery evidence, privacy/revocation evidence, and cleanup evidence require explicit authorization for the isolated fixture. No credentials, tokens, backend IDs, or raw error bodies were recorded.
+
+- Focused CP5 E2E authorization was granted and the test was attempted with `npx playwright test test/browser/fe-4-3-participant-realtime.spec.ts --workers=1`; it failed closed before mutation because all required `FE42_*` fixture variables were absent. No disposable resources were created.
+
+### WebSocket investigation — 2026-09-05
+
+- [x] Confirmed Socket.IO `/live` is a namespace, while Playwright exposes the Engine.IO transport URL under `/socket.io/`.
+- [x] Updated FE-4.3 to assert `/socket.io/` and retained lifecycle transition assertions as namespace/application-level evidence.
+- [x] Updated Playwright's non-HTTPS web-server command to pass `FE42_API_BASE` into `NEXT_PUBLIC_API_BASE` when it starts the UI.
+- [x] Restarted the UI with the matching CP5 API base and reran FE-4.3: 1 passed in 8.9s.
+- [x] Verification: typecheck passed, lint passed with 8 warnings and 0 errors, `git diff --check` passed.
+
+**Results:** The missing `/live` observation was a false negative caused by checking the raw WebSocket transport URL for a Socket.IO namespace. The transport uses `/socket.io/`; the `/live` namespace is negotiated in Socket.IO frames. The focused CP5 E2E now passes.

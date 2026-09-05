@@ -1,4 +1,4 @@
-import { defineConfig } from 'playwright/test';
+import { defineConfig } from "playwright/test";
 
 /**
  * Playwright E2E config — browser tests against the real backend (3000) +
@@ -8,11 +8,11 @@ import { defineConfig } from 'playwright/test';
  * own if none is reachable. The backend on 3000 must be up separately
  * (docker-compose stack) — Playwright does not manage it.
  */
-const browserBaseURL = process.env.FE42_UI_ORIGIN ?? 'http://localhost:3001';
-const useHttpsFixture = browserBaseURL.startsWith('https://');
+const browserBaseURL = process.env.FE42_UI_ORIGIN ?? "http://localhost:3001";
+const useHttpsFixture = browserBaseURL.startsWith("https://");
 
 export default defineConfig({
-  testDir: './test/browser',
+  testDir: "./test/browser",
   timeout: 30_000,
   retries: 0,
   fullyParallel: false, // shared backend state — avoid parallel writes
@@ -20,18 +20,16 @@ export default defineConfig({
     baseURL: browserBaseURL,
     ignoreHTTPSErrors: useHttpsFixture,
     headless: true,
-    trace: 'on-first-retry',
+    trace: "on-first-retry",
   },
   webServer: {
     command: useHttpsFixture
-      ? 'NEXT_PUBLIC_API_BASE=https://localhost:3444/api/v1 npx next dev --experimental-https --experimental-https-key /tmp/fe42-key.pem --experimental-https-cert /tmp/fe42-cert.pem -p 3443'
-      : 'npm run dev',
+      ? "NEXT_PUBLIC_API_BASE=https://localhost:3444/api/v1 npx next dev --experimental-https --experimental-https-key /tmp/fe42-key.pem --experimental-https-cert /tmp/fe42-cert.pem -p 3443"
+      : `NEXT_PUBLIC_API_BASE=${process.env.FE42_API_BASE ?? "http://localhost:3000/api/v1"} npm run dev`,
     url: browserBaseURL,
     reuseExistingServer: true,
     ignoreHTTPSErrors: useHttpsFixture,
     timeout: 60_000,
   },
-  projects: [
-    { name: 'chromium', use: { browserName: 'chromium' } },
-  ],
+  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
 });

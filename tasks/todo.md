@@ -1525,3 +1525,78 @@ The older FE-4.1 CP5 blocked record is historical and is not rewritten. Commits 
 ### Results
 
 The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-bound request, unique fixture, and cleanup conventions. It ran against the isolated HTTPS runtime with `--workers=1` and returned `1 passed / 0 failed / 0 skipped` in 20.8s. The run covered isolated teacher/two-student actors, poll-single UUID identity, response-loss and same-key replay, participant flow, and aggregate cleanup. No credentials, cookies, CSRF values, idempotency keys, or answer payloads were recorded in evidence.
+
+## 2026-09-05 — FE-4.3 Participant realtime CP0 contract freeze and baseline
+
+### Goal and acceptance criteria
+
+- [x] Keep CP0 documentation/baseline-only: no product, test, WBS, backend, environment, dependency, commit, or push changes.
+- [x] Freeze FE-4.3.1–FE-4.3.5 event/cache/recovery/revocation contract against the WBS, backend frontend API reference, backend realtime contract/gateway, and current UI adapters.
+- [x] Preserve actor/cache isolation: future participant adapter may write only `queryKeys.participantLiveSessions.*`; teacher `queryKeys.liveSessions.*` remains untouched.
+- [x] Preserve canonical sequence/watermark rules: `eventSeq` is a decimal string, compare with `BigInt`, reject malformed/negative/out-of-range values, and never apply an older watermark.
+- [x] Record revocation and recovery ordering: handshake/transport rejection uses stable error codes; cursor recovery uses `sync.required` followed by server-pushed fresh actor-safe snapshot; runtime enrollment/account/session loss currently disconnects directly and must be classified by REST, rather than assuming an emitted `permission_invalid` event.
+- [x] Baseline gates pass; record exact command results below before CP0 closeout.
+- [x] Stop at CP0 and wait for explicit `GO CP1`.
+
+### Contract matrix
+
+| Event / signal | Participant visibility and payload | Future participant cache action | Forbidden/terminal behavior |
+| --- | --- | --- | --- |
+| `session.snapshot` | `visibility=participant`; `liveSession` with open participant-safe questions/`hasSubmitted`, `submittedQuestionIds`, watermark, reveal-eligible results; no selections/counts/teacher fields | Validate schema/session/visibility/watermark, then seed only `participantLiveSessions.snapshot` and eligible participant results; submitted state remains within the snapshot projection | Reject invalid actor/session/schema/visibility; access loss clears protected participant cache |
+| `session.state_changed` | `visibility=session`; `{ status }` | Invalidate participant snapshot | Terminal lifecycle is classified through REST student-status; revoked socket disconnects |
+| `question.opened` / `question.closed` | `visibility=session`; `{ sessionQuestionId }` | Invalidate participant snapshot; use authoritative participant result path | Wrong session/shape/visibility is ignored without cursor/cache mutation |
+| `result.updated` | Participant-facing envelope is always `visibility=participant`; an open-result durable row may internally use `participant_after_submit` to target only the submitting participant. Payload is `{ sessionQuestionId, results }` with anonymous reveal-safe aggregate only | Seed/invalidate only matching participant result key | Teacher visibility/counts/correctness before reveal are rejected; wrong target is rejected |
+| `session.closed` | Participant envelope is `visibility=participant`, `{ status: closed }`; gateway emits then disconnects | Invalidate participant snapshot and student-status | No protected content remains after confirmed access loss |
+| `sync.required` | One client; `{ reason, watermark }` | One recovery cycle: clear rejected cursor, await fresh server snapshot, bounded cursorless fallback only if needed | Never resend rejected cursor; `permission_invalid` is an access-loss/recovery boundary |
+| `counts.updated` | Teacher-only legacy alias; not participant-safe | No listener, cache action, or UI consumption | Participant must not subscribe or cache it |
+| `error` | Stable `{ code }` on handshake/transport rejection; may report `UNAUTHORIZED`, `SESSION_NOT_JOINABLE`, or `REALTIME_UNAVAILABLE` | Classify stable code | Raw messages/IDs/tokens never render |
+| disconnect | No stable-code payload is guaranteed; runtime enrollment/account revocation and some terminal checks disconnect directly | Retain last safe data only for transient network loss; confirmed access loss clears affected participant cache and stops reconnect | Do not infer a revocation error code from disconnect alone; classify through REST/access-state |
+
+### Source references and working notes
+
+- WBS `docs/智學互動平台/00_專案規劃/智學互動平台剩餘工作WBS.md:630-636` still leaves FE-4.3.1–FE-4.3.5 unchecked.
+- Backend `docs/frontend-api-reference.md:292-336, 396-467` freezes `/live` cookie handshake, participant room scope, event visibility, replay/snapshot, and per-event account/enrollment reauthorization.
+- Backend `src/modules/realtime/live-session-realtime-contract.ts:117-149, 240-271, 361-400` freezes envelope/watermark/canonical cursor and stale ordering semantics.
+- Backend `src/modules/realtime/live-gateway.ts:189-231, 287-345, 388-450, 460-505, 662-785, 813-833, 1088-1104, 1180-1263` confirms cookie handshake, participant-safe snapshots/results, reauthorization/disconnect, `sync.required` then fresh snapshot, and close disconnect ordering.
+- UI `lib/live/realtime-types.ts`, `lib/live/socket-client.ts`, and `lib/live/use-live-session-events.ts` are shared/teacher boundaries; participant types and adapter remain deferred to CP1/CP2.
+- UI `lib/api/query-keys.ts:36-53` confirms separate teacher and participant namespaces. `LearnerLiveSessionView.tsx:29-41` remains REST-only with manual refresh fallback in CP0.
+- Revocation sequence: account-disabled signals directly disconnect account-bound sockets; enrollment/account authorization failures are detected before participant snapshot/replay/event delivery and disconnect; stable `error` is emitted for handshake/transport rejection, not raw backend details. Recoverable cursor/permission invalidation emits `sync.required`, then the gateway sends the fresh actor-safe snapshot. Terminal session close emits `session.closed` and disconnects.
+
+### Risk & rollback
+
+- **Risk: medium/high** — an incorrect freeze would make CP1–CP4 unsafe around teacher-data leakage, cursor precision, stale snapshots, or revocation.
+- **Mitigation:** each matrix row cites the authoritative backend/UI source; participant cache namespace remains explicit and separate.
+- **Rollback:** revert only this task-log section. No runtime or data rollback is needed because CP0 changes no product behavior.
+
+### Dependencies & environment
+
+- UI repository: `smartLearning-ui`; Node/npm dependencies already installed; no new dependency or env value.
+- Baseline unit/static/build gates do not require a backend database; real browser/revocation acceptance remains deferred to CP5.
+- Next.js 16 type generation is not changed by this documentation-only checkpoint.
+
+### CP0 baseline results
+
+- **Status:** PASS — all targeted and full baseline gates passed after the minimal FE-4.2 test type repair. CP0 is closed; stop here and wait for explicit `GO CP1`.
+- **Required commands:**
+  - `npm test -- test/realtime-adapter.test.tsx test/participant-live-sessions-api.test.tsx`
+  - `npm run typecheck`
+  - `npm run lint:check`
+  - `npm test`
+  - `npm run build`
+  - `git diff --check`
+- **Manual checkpoint:** source-contract review only. Confirm future cookie handshake uses `withCredentials` + `auth.liveSessionId`, participant events cannot consume teacher counts/projections, `sync.required` is followed by server-pushed fresh snapshot, and access loss is classified by stable codes. No participant realtime product behavior was changed in CP0.
+
+### Baseline evidence — 2026-09-05 rerun after FE-4.2 type repair
+
+| Command | Result | Evidence |
+| --- | --- | --- |
+| `npm test -- test/realtime-adapter.test.tsx test/participant-live-sessions-api.test.tsx` | PASS | 2 files / 21 tests; 0 failed, 0 skipped. |
+| `npm run typecheck` | PASS | No TypeScript diagnostics. |
+| `npm run lint:check` | PASS | 0 errors; 6 non-blocking warnings (React Hook Form `watch()` compatibility and unused browser-test locals). |
+| `npm test` | PASS | 33 files / 270 tests; 0 failed, 0 skipped. |
+| `npm run build` | PASS | Next.js 16.3.1 production build succeeded; typecheck and static generation passed; 15 routes generated. |
+| `git diff --check` | PASS | No whitespace errors. |
+
+**Diagnosis:** the minimal FE-4.2 browser-test annotation now correctly distinguishes Playwright browser `Response` from request-context `APIResponse`. All CP0 gates pass. No participant realtime code was changed, and the remaining warnings are non-blocking.
+
+**Scope evidence:** the working tree changes are limited to `tasks/todo.md` and `test/browser/fe-4-2-poll-single.spec.ts`; no backend, WBS, environment, dependency, or participant realtime product files were changed. No credentials or protected test data were recorded.

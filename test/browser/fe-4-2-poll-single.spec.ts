@@ -5,6 +5,7 @@ import {
   type APIRequestContext,
   type APIResponse,
   type BrowserContext,
+  type Response as PlaywrightResponse,
   type Page,
   type Request,
 } from "playwright/test";
@@ -273,7 +274,7 @@ async function loginViaUi(
       response.url().endsWith("/auth/login"),
   );
   await page.getByRole("button", { name: "登入" }).click();
-  let loginResponse: APIResponse | null = null;
+  let loginResponse: PlaywrightResponse | null = null;
   try {
     loginResponse = await Promise.race([
       loginResponsePromise,

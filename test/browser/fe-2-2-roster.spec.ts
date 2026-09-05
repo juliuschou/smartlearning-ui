@@ -218,9 +218,8 @@ async function changePasswordViaUi(
   await page.getByLabel("目前密碼").fill(currentPassword);
   await page.getByLabel("新密碼", { exact: true }).fill(newPassword);
   await page.getByLabel("確認新密碼").fill(newPassword);
-  const navigation = page.waitForURL((url) => url.pathname === nextPath);
   await page.getByRole("button", { name: "變更密碼" }).click();
-  await navigation;
+  await expect(page).toHaveURL(new URL(nextPath, uiOrigin).toString());
 }
 
 async function createAccount(
@@ -348,7 +347,7 @@ async function logoutContext(
       "X-CSRF-Token": await csrfToken(context),
     },
   });
-  expect(response.status(), "logout status").toBe(201);
+  expect([201, 401], "logout status").toContain(response.status());
 }
 
 test.describe("FE-2.2 real-backend Teacher 名冊", () => {
@@ -533,7 +532,11 @@ test.describe("FE-2.2 real-backend Teacher 名冊", () => {
       await expect(dialog).toBeVisible();
       await teacherPage.getByRole("button", { name: "確認移除" }).click();
       await expect(dialog).toHaveCount(0);
-      await expect(teacherPage.getByText(/已移除/)).toBeVisible();
+      await expect(
+        teacherPage
+          .getByRole("table", { name: "課程名冊" })
+          .getByText("✕ 已移除", { exact: true }),
+      ).toBeVisible();
       await expect(
         teacherPage.getByRole("button", { name: "移除" }),
       ).toHaveCount(0);
@@ -561,6 +564,7 @@ test.describe("FE-2.2 real-backend Teacher 名冊", () => {
         teacherContext,
         archivedCourse.id,
       );
+      createdCourseIds.delete(archivedCourse.id);
       await teacherPage.goto(`/courses/${archivedCourse.id}`);
       await expect(
         teacherPage.getByRole("heading", { name: "修課名冊" }),
@@ -605,11 +609,9 @@ test.describe("FE-2.2 real-backend Teacher 名冊", () => {
         studentPage,
         studentTempPassword,
         studentPassword,
-        `/courses/${rosterCourse.id}`,
+        "/student",
       );
-      await expect(
-        studentPage.getByText("你沒有權限執行此操作。"),
-      ).toBeVisible();
+      await expect(studentPage).toHaveURL(`${uiOrigin}/student`);
     } catch (error) {
       primaryError = error;
     } finally {

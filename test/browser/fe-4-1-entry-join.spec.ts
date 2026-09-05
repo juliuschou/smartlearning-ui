@@ -472,7 +472,9 @@ async function closeSession(
     "live-session before close",
   );
   if (currentSession.status === "closed") return;
-  expect(currentSession.status, "live-session state before close").toBe("active");
+  expect(currentSession.status, "live-session state before close").toBe(
+    "active",
+  );
 
   const response = await request.post(
     `${apiBase}/live-sessions/${liveSessionId}/close`,
@@ -900,13 +902,16 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
       await expect(studentPage.getByText("選項甲")).toBeVisible();
       await expect(studentPage.getByText("選項乙")).toBeVisible();
       await expect(studentPage.getByText("尚未作答。")).toBeVisible();
-      // No teacher-only data, no answering control (FE-4.2).
+      // No teacher-only data; the answer control is visible but disabled
+      // until the learner selects an option (FE-4.2).
       await expect(
         studentPage.getByText(/已加入人數|已作答人數|結束課堂|正確/),
       ).toHaveCount(0);
-      await expect(
-        studentPage.getByRole("button", { name: /送出|作答/ }),
-      ).toHaveCount(0);
+      const submitButton = studentPage.getByRole("button", {
+        name: "送出答案",
+      });
+      await expect(submitButton).toBeVisible();
+      await expect(submitButton).toBeDisabled();
 
       // --- Teacher closes the session; the learner observes the closed
       // terminal state after a manual refresh.
@@ -963,9 +968,7 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
       // race (a waiting session is cancelled, not closed — close is active-only).
       await cancelSession(teacherContext.request, teacherCsrf, raceSession.id);
       await raceEntry.click();
-      await expect(
-        studentPage.getByText("此課堂目前無法加入。"),
-      ).toBeVisible();
+      await expect(studentPage.getByText("此課堂目前無法加入。")).toBeVisible();
       await expect(
         studentPage.getByRole("button", { name: "重新整理課堂狀態" }),
       ).toBeVisible();

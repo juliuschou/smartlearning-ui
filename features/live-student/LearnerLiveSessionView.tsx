@@ -86,7 +86,7 @@ export function LearnerLiveSessionView({
     connection,
     clearProtectedContent,
     actor,
-    actor.kind === "anonymous" ? handleSessionClosed : undefined,
+    handleSessionClosed,
   );
   useEffect(() => {
     const submittedQuestion = snapshot.data?.sessionQuestions.find(
@@ -123,14 +123,15 @@ export function LearnerLiveSessionView({
     );
   }
 
-  if (sessionClosed && actor.kind === "anonymous") {
+  if (sessionClosed) {
     return (
       <>
         <TerminalState
           status="closed"
           onRefresh={() => void snapshot.refetch()}
-          returnHref="/join"
-          returnLabel="返回加入課堂"
+          {...(actor.kind === "anonymous"
+            ? { returnHref: "/join", returnLabel: "返回加入課堂" }
+            : {})}
         />
         {retainedQuestion ? (
           <PollSingleQuestion

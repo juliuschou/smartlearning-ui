@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { queryKeys } from "@/lib/api/query-keys";
 import type {
   ParticipantActor,
@@ -36,7 +36,7 @@ export function useParticipantLiveSessionEvents(
   const fallbackSent = useRef(false);
   const recoveryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { socket, acceptEventSeq, sendSnapshotFetch, terminate } = connection;
-  const clearParticipantCache = () => {
+  const clearParticipantCache = useCallback(() => {
     queryClient.removeQueries({
       queryKey: queryKeys.participantLiveSessions.session(
         actor.kind,
@@ -45,7 +45,7 @@ export function useParticipantLiveSessionEvents(
     });
     onAccessLoss?.();
     terminate();
-  };
+  }, [actor.kind, liveSessionId, onAccessLoss, queryClient, terminate]);
 
   useEffect(() => {
     if (!socket || !liveSessionId) return;
@@ -188,7 +188,17 @@ export function useParticipantLiveSessionEvents(
       });
     };
     const onClosed = (event: RealtimeEventMap["session.closed"]) => {
-      if (!accept(event, RealtimeEvent.SESSION_CLOSED)) return;
+      if (
+        !isValidRealtimeEnvelope(
+          event,
+          liveSessionId,
+          RealtimeEvent.SESSION_CLOSED,
+        )
+      )
+        return;
+      // A close event is terminal even when an earlier event left the local
+      // sequence watermark ahead of the publisher's replayed sequence.
+      accept(event, RealtimeEvent.SESSION_CLOSED);
       invalidateSnapshot();
       if (actor.kind === "student") {
         void queryClient.invalidateQueries({
@@ -233,8 +243,21 @@ export function useParticipantLiveSessionEvents(
       invalidateSnapshot();
     };
 
-    const onStateChanged = (event: RealtimeEventMap["session.state_changed"]) =>
+    const onStateChanged = (
+      event: RealtimeEventMap["session.state_changed"],
+    ) => {
+      if (
+        isValidRealtimeEnvelope(
+          event,
+          liveSessionId,
+          RealtimeEvent.SESSION_STATE_CHANGED,
+        ) &&
+        event.data?.status === "closed"
+      ) {
+        onSessionClosed?.();
+      }
       onInvalidate(event, RealtimeEvent.SESSION_STATE_CHANGED);
+    };
     const onQuestionOpened = (event: RealtimeEventMap["question.opened"]) =>
       onInvalidate(event, RealtimeEvent.QUESTION_OPENED);
     const onQuestionClosed = (event: RealtimeEventMap["question.closed"]) =>

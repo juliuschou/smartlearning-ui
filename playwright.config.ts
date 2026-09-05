@@ -11,10 +11,16 @@ import { defineConfig } from "playwright/test";
 const browserBaseURL =
   process.env.FE44_UI_ORIGIN ??
   process.env.FE42_UI_ORIGIN ??
+  process.env.FE41_UI_ORIGIN ??
+  process.env.FE22_UI_ORIGIN ??
+  process.env.FE13_UI_ORIGIN ??
   "http://localhost:3001";
 const apiBaseURL =
   process.env.FE44_API_BASE ??
   process.env.FE42_API_BASE ??
+  process.env.FE41_API_BASE ??
+  process.env.FE22_API_BASE ??
+  process.env.FE13_API_BASE ??
   "http://localhost:3000/api/v1";
 const useHttpsFixture = browserBaseURL.startsWith("https://");
 

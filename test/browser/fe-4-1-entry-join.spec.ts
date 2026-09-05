@@ -913,6 +913,30 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
       await expect(submitButton).toBeVisible();
       await expect(submitButton).toBeDisabled();
 
+      // --- Not-enrolled: verify enrollment denial while the session is active.
+      await loginViaUi(
+        otherStudentPage,
+        otherStudentUsername,
+        otherStudentTempPassword,
+        "/student",
+        () => {
+          otherStudentLoggedIn = true;
+        },
+      );
+      await changePasswordViaUi(
+        otherStudentPage,
+        otherStudentTempPassword,
+        otherStudentPassword,
+        "/student",
+      );
+      await otherStudentPage.goto(`/student/live/${mainSession.id}`);
+      await expect(
+        otherStudentPage.getByText("你尚未加選此課程，無法進入課堂。"),
+      ).toBeVisible();
+      await expect(
+        otherStudentPage.getByText(mainCourse.name, { exact: true }),
+      ).toHaveCount(0);
+
       // --- Teacher closes the session; the learner observes the closed
       // terminal state after a manual refresh.
       await closeSession(teacherContext.request, teacherCsrf, mainSession.id);
@@ -973,31 +997,6 @@ test.describe("FE-4.1 real-backend Entry／join", () => {
         studentPage.getByRole("button", { name: "重新整理課堂狀態" }),
       ).toBeVisible();
       await expect(studentPage).toHaveURL(`${uiOrigin}/student`);
-
-      // --- Not-enrolled: a second student (not enrolled) visits the learner
-      // route directly and sees the ENROLLMENT_REQUIRED access state.
-      await loginViaUi(
-        otherStudentPage,
-        otherStudentUsername,
-        otherStudentTempPassword,
-        "/student",
-        () => {
-          otherStudentLoggedIn = true;
-        },
-      );
-      await changePasswordViaUi(
-        otherStudentPage,
-        otherStudentTempPassword,
-        otherStudentPassword,
-        "/student",
-      );
-      await otherStudentPage.goto(`/student/live/${mainSession.id}`);
-      await expect(
-        otherStudentPage.getByText("你尚未加選此課程，無法進入課堂。"),
-      ).toBeVisible();
-      await expect(
-        otherStudentPage.getByText(mainCourse.name, { exact: true }),
-      ).toHaveCount(0);
 
       // --- Wrong-role: a teacher cookie cannot join (403 FORBIDDEN), and a
       // teacher visiting the learner route is redirected away by the student

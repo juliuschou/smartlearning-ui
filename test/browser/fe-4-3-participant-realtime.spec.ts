@@ -1071,7 +1071,9 @@ test.describe("FE-4.3 real-backend participant realtime", () => {
       );
       await otherStudentPage.goto(`/student/live/${mainSession.id}`);
       await expect(
-        otherStudentPage.getByText("你尚未加選此課程，無法進入課堂。"),
+        otherStudentPage
+          .getByRole("alert")
+          .getByText(/尚未加選此課程，無法進入課堂/),
       ).toBeVisible();
       await expect(
         otherStudentPage.getByText(mainCourse.name, { exact: true }),

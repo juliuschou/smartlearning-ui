@@ -19,9 +19,14 @@ const ACCESS_CODES = [
   "UNAUTHORIZED",
 ] as const;
 
+/** True when a value carries a learner access-loss code. */
+export function isLearnerAccessCode(code: unknown): boolean {
+  return typeof code === "string" && (ACCESS_CODES as readonly string[]).includes(code);
+}
+
 /** True when an error is a learner access-loss code (FE-4.1 CP4). */
 export function isLearnerAccessError(error: ApiRequestError): boolean {
-  return (ACCESS_CODES as readonly string[]).includes(error.code);
+  return isLearnerAccessCode(error.code);
 }
 
 /**

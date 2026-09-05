@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { queryKeys } from "@/lib/api/query-keys";
 import type { ParticipantLiveSessionSnapshot } from "@/lib/api/types";
+import { isLearnerAccessCode } from "@/features/live-student/LearnerAccessState";
 import type { LiveConnection } from "@/lib/live/socket-client";
 import {
   RealtimeEvent,
@@ -20,14 +21,23 @@ const RECOVERY_TIMEOUT_MS = 250;
 export function useParticipantLiveSessionEvents(
   liveSessionId: string,
   connection: LiveConnection,
+  onAccessLoss?: () => void,
 ): void {
   const queryClient = useQueryClient();
   const highestSeq = useRef<bigint | null>(null);
   const watermark = useRef<bigint | null>(null);
   const recovering = useRef(false);
+  const accessLost = useRef(false);
   const fallbackSent = useRef(false);
   const recoveryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { socket, acceptEventSeq, sendSnapshotFetch } = connection;
+  const { socket, acceptEventSeq, sendSnapshotFetch, terminate } = connection;
+  const clearParticipantCache = () => {
+    queryClient.removeQueries({
+      queryKey: queryKeys.participantLiveSessions.session(liveSessionId),
+    });
+    onAccessLoss?.();
+    terminate();
+  };
 
   useEffect(() => {
     if (!socket || !liveSessionId) return;
@@ -40,6 +50,7 @@ export function useParticipantLiveSessionEvents(
       value: unknown,
       expectedEvent?: string,
     ): value is RealtimeEventEnvelope => {
+      if (accessLost.current) return false;
       if (
         !isValidRealtimeEnvelope(value, liveSessionId, expectedEvent as never)
       )
@@ -167,6 +178,13 @@ export function useParticipantLiveSessionEvents(
           queryKeys.participantLiveSessions.studentStatus(liveSessionId),
       });
     };
+    const onSocketError = (payload?: { code?: string }) => {
+      if (isLearnerAccessCode(payload?.code)) {
+        accessLost.current = true;
+        clearParticipantCache();
+      }
+    };
+
     const onSync = (event: RealtimeEventMap["sync.required"]) => {
       if (
         !isValidRealtimeEnvelope(
@@ -209,6 +227,7 @@ export function useParticipantLiveSessionEvents(
     socket.on(RealtimeEvent.RESULT_UPDATED, onResult);
     socket.on(RealtimeEvent.SESSION_CLOSED, onClosed);
     socket.on(RealtimeEvent.SYNC_REQUIRED, onSync);
+    socket.on("error", onSocketError);
     return () => {
       clearRecoveryTimer();
       socket.off(RealtimeEvent.SESSION_SNAPSHOT, onSnapshot);
@@ -218,6 +237,16 @@ export function useParticipantLiveSessionEvents(
       socket.off(RealtimeEvent.RESULT_UPDATED, onResult);
       socket.off(RealtimeEvent.SESSION_CLOSED, onClosed);
       socket.off(RealtimeEvent.SYNC_REQUIRED, onSync);
+      socket.off("error", onSocketError);
     };
-  }, [acceptEventSeq, liveSessionId, queryClient, sendSnapshotFetch, socket]);
+  }, [
+    acceptEventSeq,
+    clearParticipantCache,
+    liveSessionId,
+    onAccessLoss,
+    queryClient,
+    sendSnapshotFetch,
+    socket,
+    terminate,
+  ]);
 }

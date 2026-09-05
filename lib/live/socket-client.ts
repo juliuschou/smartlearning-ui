@@ -73,6 +73,8 @@ export interface LiveConnection {
   acceptEventSeq: (eventSeq: string | null) => void;
   /** Ask the server for a fresh authoritative snapshot (reconnect/recovery). */
   sendSnapshotFetch: (lastEventSeq?: string) => void;
+  /** Stop reconnecting and close the socket after confirmed access loss. */
+  terminate: () => void;
   /** Underlying socket for event listeners. */
   socket: Socket | null;
 }
@@ -145,12 +147,18 @@ export function useLiveConnection(liveSessionId: string): LiveConnection {
     },
     [socket],
   );
+  const terminate = useCallback(() => {
+    if (!socket) return;
+    socket.io.reconnection(false);
+    socket.disconnect();
+  }, [socket]);
 
   return {
     status,
     errorCode,
     acceptEventSeq,
     sendSnapshotFetch,
+    terminate,
     socket,
   };
 }

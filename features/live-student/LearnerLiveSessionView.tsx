@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/api/query-keys";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { PollSingleQuestion } from "@/features/live-student/PollSingleQuestion";
 import { ApiRequestError } from "@/lib/api/client";
@@ -47,11 +49,26 @@ export function LearnerLiveSessionView({
 }: {
   liveSessionId: string;
 }) {
-  const snapshot = useParticipantSnapshot(liveSessionId);
-  const connection = useLiveConnection(liveSessionId);
-  useParticipantLiveSessionEvents(liveSessionId, connection);
+  const queryClient = useQueryClient();
   const [retainedQuestion, setRetainedQuestion] =
     useState<SessionQuestion | null>(null);
+  const snapshot = useParticipantSnapshot(liveSessionId);
+  const connection = useLiveConnection(liveSessionId);
+  const classifiedDisconnect = useRef(false);
+  const clearProtectedContent = useCallback(() => {
+    queryClient.removeQueries({
+      queryKey: queryKeys.participantLiveSessions.session(liveSessionId),
+    });
+    setRetainedQuestion(null);
+    connection.terminate();
+  }, [connection, liveSessionId, queryClient]);
+  useParticipantLiveSessionEvents(liveSessionId, connection, clearProtectedContent);
+  useEffect(() => {
+    if (connection.status === "connected") classifiedDisconnect.current = false;
+    if (connection.status !== "disconnected" || classifiedDisconnect.current) return;
+    classifiedDisconnect.current = true;
+    void snapshot.refetch();
+  }, [connection.status, snapshot]);
   useEffect(() => {
     const submittedQuestion = snapshot.data?.sessionQuestions.find(
       (question) => question.hasSubmitted === true,
@@ -69,6 +86,12 @@ export function LearnerLiveSessionView({
   // Enabled only when the snapshot reports a terminal session; otherwise the
   // empty id keeps the query disabled so no extra request is made.
   const status = useStudentStatus(isTerminal ? liveSessionId : "");
+  useEffect(() => {
+    const error = snapshot.error ?? status.error;
+    if (error instanceof ApiRequestError && isLearnerAccessError(error)) {
+      queueMicrotask(clearProtectedContent);
+    }
+  }, [clearProtectedContent, snapshot.error, status.error]);
 
   if (snapshot.isLoading) {
     return (

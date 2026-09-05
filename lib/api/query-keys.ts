@@ -44,6 +44,7 @@ export const queryKeys = {
   // with the teacher detail projection in the cache.
   participantLiveSessions: {
     all: ["participant-live-sessions"] as const,
+    session: (id: string) => ["participant-live-sessions", id] as const,
     snapshot: (id: string) =>
       ["participant-live-sessions", id, "snapshot"] as const,
     studentStatus: (id: string) =>

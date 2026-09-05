@@ -55,8 +55,13 @@ export function LearnerLiveSessionView({
   const queryClient = useQueryClient();
   const [retainedQuestion, setRetainedQuestion] =
     useState<SessionQuestion | null>(null);
+  const [sessionClosed, setSessionClosed] = useState(false);
   const snapshot = useParticipantSnapshot(liveSessionId, actor);
-  const connection = useLiveConnection(liveSessionId);
+  const connection = useLiveConnection(liveSessionId, actor);
+  const handleSessionClosed = useCallback(() => {
+    setSessionClosed(true);
+    connection.terminate();
+  }, [connection]);
   const clearProtectedContent = useCallback(() => {
     queryClient.removeQueries({
       queryKey: queryKeys.participantLiveSessions.session(
@@ -81,6 +86,7 @@ export function LearnerLiveSessionView({
     connection,
     clearProtectedContent,
     actor,
+    actor.kind === "anonymous" ? handleSessionClosed : undefined,
   );
   useEffect(() => {
     const submittedQuestion = snapshot.data?.sessionQuestions.find(
@@ -113,6 +119,26 @@ export function LearnerLiveSessionView({
       <>
         <ConnectionNotice status={connection.status} />
         <LoadingState />
+      </>
+    );
+  }
+
+  if (sessionClosed && actor.kind === "anonymous") {
+    return (
+      <>
+        <TerminalState
+          status="closed"
+          onRefresh={() => void snapshot.refetch()}
+          returnHref="/join"
+          returnLabel="返回加入課堂"
+        />
+        {retainedQuestion ? (
+          <PollSingleQuestion
+            question={{ ...retainedQuestion, status: "closed" }}
+            actor={actor}
+            onParticipantAccessLoss={clearProtectedContent}
+          />
+        ) : null}
       </>
     );
   }
@@ -326,9 +352,13 @@ function OpenQuestion({
 function TerminalState({
   status,
   onRefresh,
+  returnHref = "/student",
+  returnLabel = "返回我的課程",
 }: {
   status: "closed" | "cancelled";
   onRefresh: () => void;
+  returnHref?: string;
+  returnLabel?: string;
 }) {
   return (
     <section className="space-y-4" aria-labelledby="learner-terminal-heading">
@@ -346,10 +376,10 @@ function TerminalState({
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Link
-            href="/student"
+            href={returnHref}
             className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
-            返回我的課程
+            {returnLabel}
           </Link>
           <RefreshButton onClick={onRefresh} />
         </div>

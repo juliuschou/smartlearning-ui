@@ -26,6 +26,7 @@ export function useParticipantLiveSessionEvents(
   connection: LiveConnection,
   onAccessLoss?: () => void,
   actor: ParticipantActor = { kind: "student" },
+  onSessionClosed?: () => void,
 ): void {
   const queryClient = useQueryClient();
   const highestSeq = useRef<bigint | null>(null);
@@ -195,6 +196,7 @@ export function useParticipantLiveSessionEvents(
             queryKeys.participantLiveSessions.studentStatus(liveSessionId),
         });
       }
+      onSessionClosed?.();
     };
     const onSocketError = (payload?: { code?: string }) => {
       if (isLearnerAccessCode(payload?.code)) {
@@ -267,5 +269,6 @@ export function useParticipantLiveSessionEvents(
     socket,
     terminate,
     actor.kind,
+    onSessionClosed,
   ]);
 }

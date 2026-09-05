@@ -1788,3 +1788,16 @@ The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-b
 **Results:** CP5 implementation and focused/static verification passed. Student default behavior remains green; anonymous UI now fails closed on missing or ambiguous access and never claims closed/cancelled from REST alone. Socket handshake remains the existing CP6 scope and was not changed.
 
 **Scope:** changed `features/live-student/LearnerLiveSessionView.tsx`, `features/live-student/PollSingleQuestion.tsx`, `lib/api/participant-live-sessions.ts`, `lib/live/use-participant-live-session-events.ts`, and this task record.
+
+## FE-4.4 Checkpoint 6 — public live route and anonymous realtime (2026-09-05)
+
+- [x] Added public `/live/[liveSessionId]` Server Component route; only the route ID crosses the server/client boundary.
+- [x] Added `AnonymousLiveSessionEntry`; it checks the session-scoped credential client-side before mounting participant query/socket hooks and fails closed to `/join` when absent or invalid.
+- [x] Made `createLiveSocket`/`useLiveConnection` actor-aware: student payload remains cookie-based `{ liveSessionId, lastEventSeq? }`; anonymous payload is `{ participantToken, sessionCode, lastEventSeq? }`, with websocket transport and credentials included; missing/mismatched credentials do not call `io()`.
+- [x] Passed actor into the learner socket connection and added validated `session.closed` callback wiring for anonymous definite-close UX; anonymous terminal return points to `/join`.
+- [x] Gate 5 was released by the explicit request to continue to Checkpoint 6; CP6 implementation stopped before CP7/browser work.
+- [x] Verification: targeted realtime/participant/learner route tests passed (3 files / 17 tests); typecheck passed; lint passed with 0 errors and 12 non-blocking warnings; `git diff --check` passed.
+
+**Results:** CP6 product implementation and targeted/static verification passed. Student and teacher cookie-based socket behavior remains the default; anonymous realtime is token-bearing only in the Socket.IO auth payload after credential validation, never in URL/query/cache/DOM. Browser acceptance, expanded CP6 socket/entry tests, and FE-4.4 real-backend Playwright remain CP7 scope.
+
+**Scope:** changed `app/(public)/live/[liveSessionId]/page.tsx`, `features/live-student/AnonymousLiveSessionEntry.tsx`, `features/live-student/LearnerLiveSessionView.tsx`, `lib/live/socket-client.ts`, `lib/live/use-participant-live-session-events.ts`, and this task record. Existing FE-4.3 working-tree changes were preserved.

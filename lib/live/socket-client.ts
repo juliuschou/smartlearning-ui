@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { io, type Socket } from "socket.io-client";
+import { getAnonymousParticipantCredential } from "@/lib/live/anonymous-participant-credential";
+import type { ParticipantActor } from "@/lib/api/types";
 
 /**
  * Teacher live-classroom realtime adapter (FE-3.2).
@@ -29,6 +31,7 @@ export function liveSocketBase(): string {
 
 export interface CreateLiveSocketOptions {
   liveSessionId: string;
+  actor?: ParticipantActor;
   lastEventSeq?: string;
 }
 
@@ -38,11 +41,26 @@ export interface CreateLiveSocketOptions {
  */
 export function createLiveSocket({
   liveSessionId,
+  actor = { kind: "student" },
   lastEventSeq,
-}: CreateLiveSocketOptions): Socket {
+}: CreateLiveSocketOptions): Socket | null {
+  const auth =
+    actor.kind === "anonymous"
+      ? (() => {
+          const credential = getAnonymousParticipantCredential(liveSessionId);
+          if (!credential || credential.sessionCode !== actor.sessionCode)
+            return null;
+          return {
+            participantToken: credential.participantToken,
+            sessionCode: credential.sessionCode,
+          };
+        })()
+      : { liveSessionId };
+  if (!auth) return null;
   return io(liveSocketBase() + SOCKET_LOOKUP, {
     auth: {
-      liveSessionId,
+      ...auth,
+      ...(actor.kind === "student" ? { liveSessionId } : {}),
       ...(lastEventSeq && DECIMAL_SEQUENCE.test(lastEventSeq)
         ? { lastEventSeq }
         : {}),
@@ -89,12 +107,25 @@ export interface LiveConnection {
  * disconnected. The hook deliberately does NOT write React Query state — realtime
  * events only invalidate/seed the authoritative REST caches.
  */
-export function useLiveConnection(liveSessionId: string): LiveConnection {
-  const [socket] = useState<Socket | null>(() =>
-    liveSessionId ? createLiveSocket({ liveSessionId }) : null,
+export function useLiveConnection(
+  liveSessionId: string,
+  actor: ParticipantActor = { kind: "student" },
+): LiveConnection {
+  const actorKey =
+    actor.kind === "anonymous"
+      ? `anonymous:${liveSessionId}:${actor.sessionCode}`
+      : `student:${liveSessionId}`;
+  const socket = useMemo(
+    () => (liveSessionId ? createLiveSocket({ liveSessionId, actor }) : null),
+    [
+      actor.kind,
+      actor.kind === "anonymous" ? actor.sessionCode : "",
+      actorKey,
+      liveSessionId,
+    ],
   );
   const [status, setStatus] = useState<LiveConnectionStatus>(() =>
-    liveSessionId ? "connecting" : "idle",
+    socket ? "connecting" : "idle",
   );
   const [errorCode, setErrorCode] = useState<string | null>(null);
 

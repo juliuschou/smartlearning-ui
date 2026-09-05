@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/api/query-keys";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
@@ -11,6 +11,7 @@ import {
   useParticipantSnapshot,
   useStudentStatus,
 } from "@/lib/api/participant-live-sessions";
+import { removeAnonymousParticipantCredential } from "@/lib/live/anonymous-participant-credential";
 import { useLiveConnection } from "@/lib/live/socket-client";
 import { useParticipantLiveSessionEvents } from "@/lib/live/use-participant-live-session-events";
 import {
@@ -20,6 +21,7 @@ import {
 import type {
   LiveSessionStatus,
   ParticipantLiveSessionSnapshot,
+  ParticipantActor,
   SessionQuestion,
 } from "@/lib/api/types";
 
@@ -45,34 +47,41 @@ const STATUS_LABELS: Record<LiveSessionStatus, string> = {
  */
 export function LearnerLiveSessionView({
   liveSessionId,
+  actor = { kind: "student" },
 }: {
   liveSessionId: string;
+  actor?: ParticipantActor;
 }) {
   const queryClient = useQueryClient();
   const [retainedQuestion, setRetainedQuestion] =
     useState<SessionQuestion | null>(null);
-  const snapshot = useParticipantSnapshot(liveSessionId);
+  const snapshot = useParticipantSnapshot(liveSessionId, actor);
   const connection = useLiveConnection(liveSessionId);
-  const classifiedDisconnect = useRef(false);
   const clearProtectedContent = useCallback(() => {
     queryClient.removeQueries({
-      queryKey: queryKeys.participantLiveSessions.session(liveSessionId),
+      queryKey: queryKeys.participantLiveSessions.session(
+        actor.kind,
+        liveSessionId,
+      ),
     });
+    queryClient.removeQueries({
+      queryKey: queryKeys.participantLiveSessions.snapshot(
+        actor.kind,
+        liveSessionId,
+      ),
+    });
+    if (actor.kind === "anonymous") {
+      removeAnonymousParticipantCredential(liveSessionId);
+    }
     setRetainedQuestion(null);
     connection.terminate();
-  }, [connection, liveSessionId, queryClient]);
+  }, [actor.kind, connection, liveSessionId, queryClient]);
   useParticipantLiveSessionEvents(
     liveSessionId,
     connection,
     clearProtectedContent,
+    actor,
   );
-  useEffect(() => {
-    if (connection.status === "connected") classifiedDisconnect.current = false;
-    if (connection.status !== "disconnected" || classifiedDisconnect.current)
-      return;
-    classifiedDisconnect.current = true;
-    void snapshot.refetch();
-  }, [connection.status, snapshot]);
   useEffect(() => {
     const submittedQuestion = snapshot.data?.sessionQuestions.find(
       (question) => question.hasSubmitted === true,
@@ -89,7 +98,9 @@ export function LearnerLiveSessionView({
     snapshot.error.code === "SESSION_NOT_JOINABLE";
   // Enabled only when the snapshot reports a terminal session; otherwise the
   // empty id keeps the query disabled so no extra request is made.
-  const status = useStudentStatus(isTerminal ? liveSessionId : "");
+  const status = useStudentStatus(
+    actor.kind === "student" && isTerminal ? liveSessionId : "",
+  );
   useEffect(() => {
     const error = snapshot.error ?? status.error;
     if (error instanceof ApiRequestError && isLearnerAccessError(error)) {
@@ -108,6 +119,10 @@ export function LearnerLiveSessionView({
 
   // Terminal session: the snapshot rejects with SESSION_NOT_JOINABLE; use the
   // student-status receipt to render the exact terminal state.
+  if (isTerminal && actor.kind === "anonymous") {
+    return <AnonymousEndedState onRejoin={clearProtectedContent} />;
+  }
+
   if (isTerminal) {
     if (status.isLoading) return <LoadingState />;
     if (status.error) {
@@ -149,6 +164,10 @@ export function LearnerLiveSessionView({
             {retainedQuestion ? (
               <PollSingleQuestion
                 question={{ ...retainedQuestion, status: "closed" }}
+                actor={actor}
+                onParticipantAccessLoss={
+                  actor.kind === "anonymous" ? clearProtectedContent : undefined
+                }
               />
             ) : null}
           </>
@@ -164,6 +183,17 @@ export function LearnerLiveSessionView({
   }
 
   if (snapshot.error) {
+    if (actor.kind === "anonymous") {
+      if (snapshot.error.code === "ANONYMOUS_CREDENTIAL_MISSING") {
+        return <AnonymousCredentialState />;
+      }
+      if (
+        snapshot.error.code === "UNAUTHORIZED" ||
+        snapshot.error.code === "SESSION_NOT_JOINABLE"
+      ) {
+        return <AnonymousEndedState onRejoin={clearProtectedContent} />;
+      }
+    }
     if (snapshot.error.status === 404) {
       return <NotFoundState />;
     }
@@ -184,7 +214,9 @@ export function LearnerLiveSessionView({
     return (
       <LiveState
         snapshot={snapshot.data}
+        actor={actor}
         connectionStatus={connection.status}
+        onAccessLoss={clearProtectedContent}
         onRefresh={() => void snapshot.refetch()}
       />
     );
@@ -201,11 +233,15 @@ export function LearnerLiveSessionView({
 /** Waiting / active learner states, driven by `snapshot.status` (not the question array). */
 function LiveState({
   snapshot,
+  actor,
   connectionStatus,
+  onAccessLoss,
   onRefresh,
 }: {
   snapshot: ParticipantLiveSessionSnapshot;
+  actor: ParticipantActor;
   connectionStatus: import("@/lib/live/socket-client").LiveConnectionStatus;
+  onAccessLoss: () => void;
   onRefresh: () => void;
 }) {
   const openQuestions = snapshot.sessionQuestions;
@@ -250,7 +286,12 @@ function LiveState({
             </h3>
             <div className="mt-3 space-y-4">
               {openQuestions.map((question) => (
-                <OpenQuestion key={question.id} question={question} />
+                <OpenQuestion
+                  key={question.id}
+                  question={question}
+                  actor={actor}
+                  onAccessLoss={onAccessLoss}
+                />
               ))}
             </div>
           </section>
@@ -261,8 +302,24 @@ function LiveState({
 }
 
 /** Participant-safe open question delegated to the poll-single renderer. */
-function OpenQuestion({ question }: { question: SessionQuestion }) {
-  return <PollSingleQuestion question={question} />;
+function OpenQuestion({
+  question,
+  actor,
+  onAccessLoss,
+}: {
+  question: SessionQuestion;
+  actor: ParticipantActor;
+  onAccessLoss: () => void;
+}) {
+  return (
+    <PollSingleQuestion
+      question={question}
+      actor={actor}
+      onParticipantAccessLoss={
+        actor.kind === "anonymous" ? onAccessLoss : undefined
+      }
+    />
+  );
 }
 
 /** Read-only terminal state (`closed` / `cancelled`) with a return-to-courses link. */
@@ -344,6 +401,47 @@ function LoadingState() {
     >
       載入課堂中…
     </p>
+  );
+}
+
+function AnonymousCredentialState() {
+  return (
+    <section
+      role="alert"
+      className="space-y-3 rounded-md border border-zinc-200 px-4 py-4 dark:border-zinc-800"
+    >
+      <h2 className="font-semibold">匿名參與已失效</h2>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        找不到此裝置的參與憑證，請重新加入課堂。
+      </p>
+      <Link
+        href="/join"
+        className="inline-block rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium dark:border-zinc-700"
+      >
+        返回加入課堂
+      </Link>
+    </section>
+  );
+}
+
+function AnonymousEndedState({ onRejoin }: { onRejoin: () => void }) {
+  return (
+    <section
+      role="alert"
+      className="space-y-3 rounded-md border border-zinc-200 px-4 py-4 dark:border-zinc-800"
+    >
+      <h2 className="font-semibold">已結束或無法使用</h2>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        這個匿名參與憑證已無法使用，請重新加入課堂。
+      </p>
+      <Link
+        href="/join"
+        onClick={onRejoin}
+        className="inline-block rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium dark:border-zinc-700"
+      >
+        返回加入課堂
+      </Link>
+    </section>
   );
 }
 

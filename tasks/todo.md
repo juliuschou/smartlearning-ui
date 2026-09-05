@@ -1773,3 +1773,18 @@ The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-b
 - [x] Verification: typecheck passed, lint passed with 8 warnings and 0 errors, `git diff --check` passed.
 
 **Results:** The missing `/live` observation was a false negative caused by checking the raw WebSocket transport URL for a Socket.IO namespace. The transport uses `/socket.io/`; the `/live` namespace is negotiated in Socket.IO frames. The focused CP5 E2E now passes.
+
+
+## FE-4.4 Checkpoint 5 — shared participant-safe UI (2026-09-05)
+
+- [x] Added `actor` prop to `LearnerLiveSessionView` with student default and anonymous actor-aware snapshot/cache wiring.
+- [x] Added centralized anonymous cleanup: removes only actor-qualified participant caches, clears session-scoped credential, retained question, and terminates realtime connection.
+- [x] Added dedicated anonymous missing-credential and ambiguous ended/unavailable states; anonymous paths do not use `student-status` or login redirect and return to `/join`.
+- [x] Wired `PollSingleQuestion` actor through results, submission, actor-qualified attempts, and anonymous access-loss callback.
+- [x] Updated realtime cache adapter to actor-qualified snapshot/result keys and student-only status invalidation.
+- [x] Verification: focused Vitest 2 files / 34 tests passed; typecheck passed; lint passed with 8 pre-existing warnings; `git diff --check` passed.
+- [ ] Manual Gate 5 confirmation pending; do not start Checkpoint 6.
+
+**Results:** CP5 implementation and focused/static verification passed. Student default behavior remains green; anonymous UI now fails closed on missing or ambiguous access and never claims closed/cancelled from REST alone. Socket handshake remains the existing CP6 scope and was not changed.
+
+**Scope:** changed `features/live-student/LearnerLiveSessionView.tsx`, `features/live-student/PollSingleQuestion.tsx`, `lib/api/participant-live-sessions.ts`, `lib/live/use-participant-live-session-events.ts`, and this task record.

@@ -246,7 +246,9 @@ export function participantSnapshotQueryOptions(
         `/live-sessions/${id}/snapshot`,
         {
           signal,
-          auth: participantAuth(actor),
+          ...(actor.kind === "anonymous"
+            ? { auth: participantAuth(actor) }
+            : {}),
         },
       ),
     enabled:

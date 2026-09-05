@@ -3,7 +3,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { queryKeys } from "@/lib/api/query-keys";
-import type { ParticipantLiveSessionSnapshot } from "@/lib/api/types";
+import type {
+  ParticipantActor,
+  ParticipantLiveSessionSnapshot,
+} from "@/lib/api/types";
 import { isLearnerAccessCode } from "@/features/live-student/LearnerAccessState";
 import type { LiveConnection } from "@/lib/live/socket-client";
 import {
@@ -22,6 +25,7 @@ export function useParticipantLiveSessionEvents(
   liveSessionId: string,
   connection: LiveConnection,
   onAccessLoss?: () => void,
+  actor: ParticipantActor = { kind: "student" },
 ): void {
   const queryClient = useQueryClient();
   const highestSeq = useRef<bigint | null>(null);
@@ -33,7 +37,10 @@ export function useParticipantLiveSessionEvents(
   const { socket, acceptEventSeq, sendSnapshotFetch, terminate } = connection;
   const clearParticipantCache = () => {
     queryClient.removeQueries({
-      queryKey: queryKeys.participantLiveSessions.session(liveSessionId),
+      queryKey: queryKeys.participantLiveSessions.session(
+        actor.kind,
+        liveSessionId,
+      ),
     });
     onAccessLoss?.();
     terminate();
@@ -83,7 +90,10 @@ export function useParticipantLiveSessionEvents(
     };
     const invalidateSnapshot = () =>
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.participantLiveSessions.snapshot(liveSessionId),
+        queryKey: queryKeys.participantLiveSessions.snapshot(
+          actor.kind,
+          liveSessionId,
+        ),
       });
     const seedSnapshot = (data: ParticipantRealtimeSnapshotData) => {
       const nextWatermark = BigInt(data.watermark.eventSeq);
@@ -98,12 +108,16 @@ export function useParticipantLiveSessionEvents(
         })),
       };
       queryClient.setQueryData(
-        queryKeys.participantLiveSessions.snapshot(liveSessionId),
+        queryKeys.participantLiveSessions.snapshot(actor.kind, liveSessionId),
         snapshot,
       );
       for (const [questionId, results] of Object.entries(data.results)) {
         queryClient.setQueryData(
-          queryKeys.participantLiveSessions.results(liveSessionId, questionId),
+          queryKeys.participantLiveSessions.results(
+            actor.kind,
+            liveSessionId,
+            questionId,
+          ),
           results,
         );
       }
@@ -158,6 +172,7 @@ export function useParticipantLiveSessionEvents(
       if (!accept(event, RealtimeEvent.RESULT_UPDATED)) return;
       queryClient.setQueryData(
         queryKeys.participantLiveSessions.results(
+          actor.kind,
           liveSessionId,
           event.data.sessionQuestionId,
         ),
@@ -165,6 +180,7 @@ export function useParticipantLiveSessionEvents(
       );
       void queryClient.invalidateQueries({
         queryKey: queryKeys.participantLiveSessions.results(
+          actor.kind,
           liveSessionId,
           event.data.sessionQuestionId,
         ),
@@ -173,10 +189,12 @@ export function useParticipantLiveSessionEvents(
     const onClosed = (event: RealtimeEventMap["session.closed"]) => {
       if (!accept(event, RealtimeEvent.SESSION_CLOSED)) return;
       invalidateSnapshot();
-      void queryClient.invalidateQueries({
-        queryKey:
-          queryKeys.participantLiveSessions.studentStatus(liveSessionId),
-      });
+      if (actor.kind === "student") {
+        void queryClient.invalidateQueries({
+          queryKey:
+            queryKeys.participantLiveSessions.studentStatus(liveSessionId),
+        });
+      }
     };
     const onSocketError = (payload?: { code?: string }) => {
       if (isLearnerAccessCode(payload?.code)) {
@@ -248,5 +266,6 @@ export function useParticipantLiveSessionEvents(
     sendSnapshotFetch,
     socket,
     terminate,
+    actor.kind,
   ]);
 }

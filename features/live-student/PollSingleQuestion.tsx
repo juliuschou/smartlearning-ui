@@ -3,11 +3,16 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { isLearnerAccessCode } from "@/features/live-student/LearnerAccessState";
 import {
   useParticipantResults,
   useSubmitPollSingle,
 } from "@/lib/api/participant-live-sessions";
-import type { SessionQuestion, SessionQuestionResults } from "@/lib/api/types";
+import type {
+  ParticipantActor,
+  SessionQuestion,
+  SessionQuestionResults,
+} from "@/lib/api/types";
 import {
   createPollSubmissionAttempt,
   getPollSubmissionAttempt,
@@ -20,14 +25,23 @@ const UUID_PATTERN =
 
 export function PollSingleQuestion({
   question,
+  actor = { kind: "student" },
   onSubmit,
+  onParticipantAccessLoss,
 }: {
   question: SessionQuestion;
+  actor?: ParticipantActor;
   onSubmit?: (optionId: string) => void;
+  onParticipantAccessLoss?: () => void;
 }) {
   const optionIds = question.options.map((option) => option.id);
   const [storedAttempt, setStoredAttempt] = useState(() =>
-    getPollSubmissionAttempt(question.liveSessionId, question.id, optionIds),
+    getPollSubmissionAttempt(
+      question.liveSessionId,
+      question.id,
+      optionIds,
+      actor.kind,
+    ),
   );
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(
     storedAttempt?.optionId ?? null,
@@ -47,6 +61,7 @@ export function PollSingleQuestion({
     question.liveSessionId,
     question.id,
     isSupported && (showResults || isSubmitted),
+    actor,
   );
 
   if (!isSupported) {
@@ -64,6 +79,7 @@ export function PollSingleQuestion({
         sessionQuestionId: question.id,
         optionId,
         idempotencyKey: attempt.idempotencyKey,
+        actor,
       },
       {
         onSuccess: ({ data: response, status }) => {
@@ -81,13 +97,22 @@ export function PollSingleQuestion({
             setResponseError({ code: "SUBMISSION_CONFLICT" });
             return;
           }
-          removePollSubmissionAttempt(question.liveSessionId, question.id);
+          removePollSubmissionAttempt(
+            question.liveSessionId,
+            question.id,
+            actor.kind,
+          );
           setStoredAttempt(null);
           setSubmitted(true);
           setShowResults(true);
           onSubmit?.(canonical[0]);
         },
-        onError: (error) => setResponseError(error),
+        onError: (error) => {
+          if (actor.kind === "anonymous" && isLearnerAccessCode(error.code)) {
+            onParticipantAccessLoss?.();
+          }
+          setResponseError(error);
+        },
       },
     );
   }
@@ -105,6 +130,7 @@ export function PollSingleQuestion({
       question.id,
       selectedOptionId,
       optionIds,
+      actor.kind,
     );
     if (!attempt || !persistPollSubmissionAttempt(attempt)) {
       setResponseError({ code: "STORAGE_UNAVAILABLE" });

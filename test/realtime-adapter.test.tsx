@@ -13,6 +13,7 @@ import {
   type RealtimeSnapshotData,
 } from "@/lib/live/realtime-types";
 import type { LiveSession, SessionQuestionResults } from "@/lib/api/types";
+import { persistAnonymousParticipantCredential } from "@/lib/live/anonymous-participant-credential";
 
 // --- mock socket.io-client -------------------------------------------------
 
@@ -134,6 +135,7 @@ beforeEach(() => {
   mocks.listeners.clear();
   mocks.socket.connected = false;
   mocks.socket.auth = {};
+  window.sessionStorage.clear();
   seqCounter = 0;
 });
 
@@ -221,6 +223,51 @@ describe("useLiveConnection (FE-3.2.1/3.2.2/3.2.4/3.2.6)", () => {
     const { result } = renderHook(() => useLiveConnection(""), {
       wrapper: wrapperFor(queryClient),
     });
+
+    expect(mocks.io).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
+  });
+
+  it("uses the scoped anonymous credential only in the Socket.IO auth payload", () => {
+    const liveSessionId = "11111111-1111-7111-8111-111111111111";
+    persistAnonymousParticipantCredential({
+      liveSessionId,
+      sessionCode: "ABCD1234",
+      participantToken: "secret-token",
+    });
+
+    const queryClient = makeQueryClient();
+    renderHook(
+      () =>
+        useLiveConnection(liveSessionId, {
+          kind: "anonymous",
+          liveSessionId,
+          sessionCode: "ABCD1234",
+        }),
+      { wrapper: wrapperFor(queryClient) },
+    );
+
+    const [url, opts] = mocks.io.mock.calls[0];
+    expect(url).toBe("http://localhost:3000/live");
+    expect(opts).toMatchObject({
+      auth: { participantToken: "secret-token", sessionCode: "ABCD1234" },
+      transports: ["websocket"],
+      withCredentials: true,
+    });
+    expect(url).not.toContain("secret-token");
+  });
+
+  it("fails closed without creating a socket for a missing anonymous credential", () => {
+    const queryClient = makeQueryClient();
+    const { result } = renderHook(
+      () =>
+        useLiveConnection("11111111-1111-7111-8111-111111111111", {
+          kind: "anonymous",
+          liveSessionId: "11111111-1111-7111-8111-111111111111",
+          sessionCode: "ABCD1234",
+        }),
+      { wrapper: wrapperFor(queryClient) },
+    );
 
     expect(mocks.io).not.toHaveBeenCalled();
     expect(result.current.status).toBe("idle");

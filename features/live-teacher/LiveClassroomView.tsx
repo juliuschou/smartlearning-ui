@@ -23,7 +23,8 @@ const STATUS_LABELS: Record<LiveSessionStatus, string> = {
  * Drives off the authoritative `GET /live-sessions/:id` detail via `useLiveSession`,
  * wired to the `/live` realtime adapter (`useLiveConnection` + `useLiveSessionEvents`)
  * so events invalidate/seed the authoritative REST caches. There is no session-list
- * endpoint, so the classroom is reached by deep link to `/live/:liveSessionId`.
+ * endpoint, so the classroom is reached by deep link to
+ * `/teacher/live/:liveSessionId`.
  */
 export function LiveClassroomView({
   liveSessionId,

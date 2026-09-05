@@ -182,7 +182,7 @@ describe("Participant snapshot query (CP1)", () => {
     expect(apiRequestMock).toHaveBeenCalledTimes(1);
     expect(apiRequestMock).toHaveBeenCalledWith(
       "/live-sessions/session-1/snapshot",
-      { signal: expect.any(AbortSignal), auth: { kind: "session" } },
+      { signal: expect.any(AbortSignal) },
     );
     expect(result.current.data?.sessionQuestions).toHaveLength(1);
     expect(result.current.data?.sessionQuestions[0].hasSubmitted).toBe(false);

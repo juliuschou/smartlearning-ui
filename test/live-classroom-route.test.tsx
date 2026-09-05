@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { describe, expect, it, vi } from "vitest";
-import LiveClassroomPage from "@/app/(teacher)/live/[liveSessionId]/page";
+import LiveClassroomPage from "@/app/(teacher)/teacher/live/[liveSessionId]/page";
 
 // The page is a Server Component that renders the client LiveClassroomView; route
 // tests here assert the shell (back link, heading, liveSessionId passthrough) by

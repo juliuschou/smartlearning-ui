@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { LearnerLiveSessionView } from "@/features/live-student/LearnerLiveSessionView";
 import { getAnonymousParticipantCredential } from "@/lib/live/anonymous-participant-credential";
 
@@ -9,13 +9,17 @@ export function AnonymousLiveSessionEntry({
 }: {
   liveSessionId: string;
 }) {
-  const credential = useSyncExternalStore(
-    () => () => undefined,
-    () => getAnonymousParticipantCredential(liveSessionId),
-    () => null,
-  );
+  const [credential, setCredential] = useState<
+    ReturnType<typeof getAnonymousParticipantCredential> | undefined
+  >(undefined);
 
-  if (credential === null && typeof window === "undefined") {
+  useEffect(() => {
+    queueMicrotask(() => {
+      setCredential(getAnonymousParticipantCredential(liveSessionId));
+    });
+  }, [liveSessionId]);
+
+  if (credential === undefined) {
     return (
       <p role="status" aria-live="polite">
         載入匿名參與狀態…

@@ -171,8 +171,10 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
     apiRequestMock.mockRejectedValueOnce(terminalError());
     apiRequestMock.mockResolvedValueOnce(status({ status: "closed" }));
     renderView();
-    await waitFor(() => expect(screen.getByText("已結束")).toBeInTheDocument());
-    expect(screen.getByText(/課堂已結束，此頁面為唯讀/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("已結束")).toBeInTheDocument();
+      expect(screen.getByText(/課堂已結束，此頁面為唯讀/)).toBeInTheDocument();
+    });
     expect(screen.getByRole("link", { name: "返回我的課程" })).toHaveAttribute(
       "href",
       "/student",
@@ -183,8 +185,10 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
     apiRequestMock.mockRejectedValueOnce(terminalError());
     apiRequestMock.mockResolvedValueOnce(status({ status: "cancelled" }));
     renderView();
-    await waitFor(() => expect(screen.getByText("已取消")).toBeInTheDocument());
-    expect(screen.getByText(/此課堂已取消/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("已取消")).toBeInTheDocument();
+      expect(screen.getByText(/此課堂已取消/)).toBeInTheDocument();
+    });
   });
 
   it("shows a generic not-found message on a 404 snapshot", async () => {

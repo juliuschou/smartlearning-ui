@@ -1801,3 +1801,27 @@ The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-b
 **Results:** CP6 product implementation and targeted/static verification passed. Student and teacher cookie-based socket behavior remains the default; anonymous realtime is token-bearing only in the Socket.IO auth payload after credential validation, never in URL/query/cache/DOM. Browser acceptance, expanded CP6 socket/entry tests, and FE-4.4 real-backend Playwright remain CP7 scope.
 
 **Scope:** changed `app/(public)/live/[liveSessionId]/page.tsx`, `features/live-student/AnonymousLiveSessionEntry.tsx`, `features/live-student/LearnerLiveSessionView.tsx`, `lib/live/socket-client.ts`, `lib/live/use-participant-live-session-events.ts`, and this task record. Existing FE-4.3 working-tree changes were preserved.
+
+## FE-4.4 Checkpoint 7 — regression coverage and browser closeout (2026-09-05)
+
+- [x] Added anonymous Socket.IO unit coverage for scoped credential auth payload, websocket transport, credentials, and missing-credential fail-closed behavior.
+- [x] Updated student snapshot regression expectation to preserve cookie-default transport without an unnecessary explicit session auth descriptor.
+- [x] Stabilized existing learner terminal assertions by waiting for the complete terminal projection before checking secondary copy.
+- [x] Added `test/browser/fe-4-4-anonymous-fallback.spec.ts` with fail-closed FE44 fixture preflight, anonymous join header/body checks, server-ID navigation, sessionStorage-only credential assertions, reload identity preservation, transport URL privacy, and fresh-context credential loss.
+- [x] Targeted regression verification: 6 files / 70 tests passed after the CP7 changes.
+- [x] `npx next typegen`, `npm run typecheck`, `npm run lint:check`, and browser discovery were run locally; static checks passed with existing/non-blocking warnings and browser discovery found the new spec.
+- [ ] Real-backend browser acceptance: BLOCKED. The runner's Next web server fails before tests because `/live/[liveSessionId]` is defined in both `app/(public)` and the existing `app/(teacher)` route groups. Next reports: `You cannot have two parallel pages that resolve to the same path. Please check /(public)/live/[liveSessionId] and /(teacher).`
+- [ ] FE-4.4 WBS closeout: not claimed. The route collision is a CP6 product blocker that must be resolved before any real-browser evidence can be validly collected.
+
+**Results:** CP7 regression coverage is present and targeted/static checks are green, but browser closeout is stopped at the route-build gate. No backend fixture or mutating browser flow was run. The required next decision is to resolve the `/live/:liveSessionId` collision without regressing the existing teacher classroom route, then rerun build/browser discovery and the FE-4.4 real-backend matrix.
+
+**Scope:** changed `test/realtime-adapter.test.tsx`, `test/participant-live-sessions-api.test.tsx`, `test/learner-live-session-view.test.tsx`, `test/browser/fe-4-4-anonymous-fallback.spec.ts`, and this task record. No backend, dependency, env, or WBS changes.
+
+## FE-4.4 route collision resolution (2026-09-05)
+
+- **Resolution:** moved the protected teacher classroom route from `app/(teacher)/live/[liveSessionId]/` to `app/(teacher)/teacher/live/[liveSessionId]/`. The public anonymous route remains the sole owner of `/live/:liveSessionId`; the student route remains `/student/live/:liveSessionId`.
+- **Preserved:** teacher route boundaries (`loading`, `error`, `not-found`), `(teacher)` auth/role layout, classroom implementation, anonymous navigation, and student navigation.
+- **Updated:** `test/live-classroom-route.test.tsx` import and `features/live-teacher/LiveClassroomView.tsx` deep-link documentation.
+- **Compatibility:** existing teacher deep links using `/live/:id` must be changed to `/teacher/live/:id`; no redirect can coexist at `/live/:id` because that path is now intentionally public for anonymous participants.
+- **Status:** implementation complete; route/build/typegen/browser discovery verification passed. Real-backend FE-4.4 execution remains fixture-gated.
+- **Verification:** `npx next typegen` passed; targeted route tests passed (3 files / 4 tests); `npm run typecheck` passed; `npm run build` passed with distinct `/live/[liveSessionId]` and `/teacher/live/[liveSessionId]` routes; `npm run lint:check` passed with existing warnings; browser discovery passed with 8 specs; `git diff --check` passed.

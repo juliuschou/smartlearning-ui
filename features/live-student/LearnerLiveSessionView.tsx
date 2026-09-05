@@ -9,6 +9,8 @@ import {
   useParticipantSnapshot,
   useStudentStatus,
 } from "@/lib/api/participant-live-sessions";
+import { useLiveConnection } from "@/lib/live/socket-client";
+import { useParticipantLiveSessionEvents } from "@/lib/live/use-participant-live-session-events";
 import {
   isLearnerAccessError,
   LearnerAccessState,
@@ -46,6 +48,8 @@ export function LearnerLiveSessionView({
   liveSessionId: string;
 }) {
   const snapshot = useParticipantSnapshot(liveSessionId);
+  const connection = useLiveConnection(liveSessionId);
+  useParticipantLiveSessionEvents(liveSessionId, connection);
   const [retainedQuestion, setRetainedQuestion] =
     useState<SessionQuestion | null>(null);
   useEffect(() => {
@@ -67,7 +71,12 @@ export function LearnerLiveSessionView({
   const status = useStudentStatus(isTerminal ? liveSessionId : "");
 
   if (snapshot.isLoading) {
-    return <LoadingState />;
+    return (
+      <>
+        <ConnectionNotice status={connection.status} />
+        <LoadingState />
+      </>
+    );
   }
 
   // Terminal session: the snapshot rejects with SESSION_NOT_JOINABLE; use the
@@ -148,6 +157,7 @@ export function LearnerLiveSessionView({
     return (
       <LiveState
         snapshot={snapshot.data}
+        connectionStatus={connection.status}
         onRefresh={() => void snapshot.refetch()}
       />
     );
@@ -164,57 +174,62 @@ export function LearnerLiveSessionView({
 /** Waiting / active learner states, driven by `snapshot.status` (not the question array). */
 function LiveState({
   snapshot,
+  connectionStatus,
   onRefresh,
 }: {
   snapshot: ParticipantLiveSessionSnapshot;
+  connectionStatus: import("@/lib/live/socket-client").LiveConnectionStatus;
   onRefresh: () => void;
 }) {
   const openQuestions = snapshot.sessionQuestions;
   return (
-    <section className="space-y-6" aria-labelledby="learner-session-heading">
-      <div className="rounded-md border border-zinc-200 px-4 py-4 dark:border-zinc-800">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2
-            id="learner-session-heading"
-            className="text-lg font-semibold tracking-tight"
-          >
-            {STATUS_LABELS[snapshot.status]}
-          </h2>
-          <span className="flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-1 text-sm font-medium tracking-wide dark:border-zinc-700">
-            課堂代碼
-            <span className="font-semibold tracking-widest">
-              {snapshot.sessionCode}
+    <>
+      <ConnectionNotice status={connectionStatus} />
+      <section className="space-y-6" aria-labelledby="learner-session-heading">
+        <div className="rounded-md border border-zinc-200 px-4 py-4 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2
+              id="learner-session-heading"
+              className="text-lg font-semibold tracking-tight"
+            >
+              {STATUS_LABELS[snapshot.status]}
+            </h2>
+            <span className="flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-1 text-sm font-medium tracking-wide dark:border-zinc-700">
+              課堂代碼
+              <span className="font-semibold tracking-widest">
+                {snapshot.sessionCode}
+              </span>
             </span>
-          </span>
-        </div>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          {snapshot.status === "waiting"
-            ? "等待老師開始課堂。"
-            : openQuestions.length === 0
-              ? "等待老師開題。"
-              : "請查看目前開放的題目。"}
-        </p>
-        <div className="mt-4">
-          <RefreshButton onClick={onRefresh} />
-        </div>
-      </div>
-
-      {snapshot.status === "active" && openQuestions.length > 0 ? (
-        <section aria-labelledby="learner-open-questions-heading">
-          <h3
-            id="learner-open-questions-heading"
-            className="text-sm font-semibold"
-          >
-            目前題目
-          </h3>
-          <div className="mt-3 space-y-4">
-            {openQuestions.map((question) => (
-              <OpenQuestion key={question.id} question={question} />
-            ))}
           </div>
-        </section>
-      ) : null}
-    </section>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            {snapshot.status === "waiting"
+              ? "等待老師開始課堂。"
+              : openQuestions.length === 0
+                ? "等待老師開題。"
+                : "請查看目前開放的題目。"}
+          </p>
+          <div className="mt-4">
+            <RefreshButton onClick={onRefresh} />
+          </div>
+        </div>
+
+        {snapshot.status === "active" && openQuestions.length > 0 ? (
+          <section aria-labelledby="learner-open-questions-heading">
+            <h3
+              id="learner-open-questions-heading"
+              className="text-sm font-semibold"
+            >
+              目前題目
+            </h3>
+            <div className="mt-3 space-y-4">
+              {openQuestions.map((question) => (
+                <OpenQuestion key={question.id} question={question} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </section>
+    </>
   );
 }
 
@@ -256,6 +271,28 @@ function TerminalState({
         </div>
       </div>
     </section>
+  );
+}
+
+function ConnectionNotice({
+  status,
+}: {
+  status: import("@/lib/live/socket-client").LiveConnectionStatus;
+}) {
+  if (status === "connected" || status === "idle") return null;
+  const text =
+    status === "connecting"
+      ? "正在同步課堂狀態…"
+      : status === "disconnected"
+        ? "連線中斷，保留目前安全資料。"
+        : "即時連線暫時無法使用，請稍後再試。";
+  return (
+    <p
+      aria-live="polite"
+      className="mb-4 text-sm text-zinc-600 dark:text-zinc-400"
+    >
+      {text}
+    </p>
   );
 }
 

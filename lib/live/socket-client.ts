@@ -14,6 +14,7 @@ import { io, type Socket } from "socket.io-client";
  */
 
 const SOCKET_LOOKUP = "/live";
+const DECIMAL_SEQUENCE = /^(?:0|[1-9][0-9]*)$/u;
 
 /**
  * Backend origin for the Socket.IO `io()` connection. Derived from the same env the
@@ -42,7 +43,9 @@ export function createLiveSocket({
   return io(liveSocketBase() + SOCKET_LOOKUP, {
     auth: {
       liveSessionId,
-      ...(lastEventSeq ? { lastEventSeq } : {}),
+      ...(lastEventSeq && DECIMAL_SEQUENCE.test(lastEventSeq)
+        ? { lastEventSeq }
+        : {}),
     },
     transports: ["websocket"],
     withCredentials: true,
@@ -56,10 +59,18 @@ export function createLiveSocket({
 export type LiveConnectionStatus =
   "idle" | "connecting" | "connected" | "disconnected" | "error";
 
+function setSocketCursor(socket: Socket, eventSeq: string | null): void {
+  const auth = socket.auth as Record<string, unknown>;
+  if (eventSeq !== null) auth.lastEventSeq = eventSeq;
+  else delete auth.lastEventSeq;
+}
+
 export interface LiveConnection {
   status: LiveConnectionStatus;
   /** Stable code from the server `error` event (e.g. `REALTIME_UNAVAILABLE`). */
   errorCode: string | null;
+  /** Update the lossless reconnect cursor after accepting a wire message. */
+  acceptEventSeq: (eventSeq: string | null) => void;
   /** Ask the server for a fresh authoritative snapshot (reconnect/recovery). */
   sendSnapshotFetch: (lastEventSeq?: string) => void;
   /** Underlying socket for event listeners. */
@@ -87,7 +98,11 @@ export function useLiveConnection(liveSessionId: string): LiveConnection {
 
   useEffect(() => {
     if (!socket) return;
-    const onConnect = () => setStatus("connected");
+    const onConnect = () => {
+      setStatus("connected");
+      setErrorCode(null);
+    };
+    const onReconnectAttempt = () => setStatus("connecting");
     const onDisconnect = () => setStatus("disconnected");
     const onConnectError = () => {
       setStatus("error");
@@ -99,6 +114,7 @@ export function useLiveConnection(liveSessionId: string): LiveConnection {
     };
 
     socket.on("connect", onConnect);
+    socket.on("reconnect_attempt", onReconnectAttempt);
     socket.on("disconnect", onDisconnect);
     socket.on("connect_error", onConnectError);
     socket.on("error", onError);
@@ -106,12 +122,21 @@ export function useLiveConnection(liveSessionId: string): LiveConnection {
 
     return () => {
       socket.off("connect", onConnect);
+      socket.off("reconnect_attempt", onReconnectAttempt);
       socket.off("disconnect", onDisconnect);
       socket.off("connect_error", onConnectError);
       socket.off("error", onError);
       socket.disconnect();
     };
   }, [socket]);
+
+  const acceptEventSeq = useCallback(
+    (eventSeq: string | null) => {
+      if (!socket) return;
+      setSocketCursor(socket, eventSeq);
+    },
+    [socket],
+  );
 
   const sendSnapshotFetch = useCallback(
     (cursor?: string) => {
@@ -124,6 +149,7 @@ export function useLiveConnection(liveSessionId: string): LiveConnection {
   return {
     status,
     errorCode,
+    acceptEventSeq,
     sendSnapshotFetch,
     socket,
   };

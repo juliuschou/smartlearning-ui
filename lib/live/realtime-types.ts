@@ -17,7 +17,11 @@
  * older watermark overwrite newer state.
  */
 
-import type { LiveSession, SessionQuestionResults } from "@/lib/api/types";
+import type {
+  LiveSession,
+  ParticipantLiveSessionSnapshot,
+  SessionQuestionResults,
+} from "@/lib/api/types";
 
 /** Durable realtime event names emitted by the `/live` gateway. */
 export const RealtimeEvent = {
@@ -145,3 +149,65 @@ export const RealtimeClientEvent = {
 
 export type RealtimeClientEventName =
   (typeof RealtimeClientEvent)[keyof typeof RealtimeClientEvent];
+
+/** Participant-only snapshot; it must never be represented by the teacher DTO. */
+export interface ParticipantRealtimeSnapshotData {
+  liveSession: ParticipantLiveSessionSnapshot;
+  submittedQuestionIds: readonly string[];
+  watermark: RealtimeWatermark;
+  results: Readonly<Record<string, SessionQuestionResults>>;
+  reason?: string;
+}
+
+export type ParticipantRealtimeEventName =
+  | typeof RealtimeEvent.SESSION_SNAPSHOT
+  | typeof RealtimeEvent.SESSION_STATE_CHANGED
+  | typeof RealtimeEvent.QUESTION_OPENED
+  | typeof RealtimeEvent.QUESTION_CLOSED
+  | typeof RealtimeEvent.RESULT_UPDATED
+  | typeof RealtimeEvent.SESSION_CLOSED
+  | typeof RealtimeEvent.SYNC_REQUIRED;
+
+const DECIMAL_SEQUENCE = /^(?:0|[1-9][0-9]*)$/u;
+
+export function isCanonicalEventSeq(value: unknown): value is string {
+  return typeof value === "string" && DECIMAL_SEQUENCE.test(value);
+}
+
+export function isParticipantVisibility(value: unknown): boolean {
+  return (
+    value === RealtimeVisibility.SESSION ||
+    value === RealtimeVisibility.PARTICIPANT ||
+    value === RealtimeVisibility.PARTICIPANT_AFTER_SUBMIT
+  );
+}
+
+export function isValidRealtimeEnvelope(
+  value: unknown,
+  liveSessionId: string,
+  expectedEvent?: ParticipantRealtimeEventName,
+): value is RealtimeEventEnvelope {
+  if (typeof value !== "object" || value === null) return false;
+  const envelope = value as Partial<RealtimeEventEnvelope>;
+  const eventIsKnown = Object.values(RealtimeEvent).includes(
+    envelope.event as RealtimeEventName,
+  );
+  if (
+    envelope.schemaVersion !== 1 ||
+    envelope.liveSessionId !== liveSessionId ||
+    !isCanonicalEventSeq(envelope.eventSeq) ||
+    !isParticipantVisibility(envelope.visibility) ||
+    !eventIsKnown ||
+    (expectedEvent !== undefined && envelope.event !== expectedEvent) ||
+    typeof envelope.data !== "object" ||
+    envelope.data === null
+  ) {
+    return false;
+  }
+  try {
+    BigInt(envelope.eventSeq);
+  } catch {
+    return false;
+  }
+  return true;
+}

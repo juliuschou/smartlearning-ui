@@ -1515,7 +1515,6 @@ The older FE-4.1 CP5 blocked record is historical and is not rewritten. Commits 
 
 - CP4 implementation and full frontend static/unit verification are complete. **Hard stop before CP5** pending user confirmation; do not add the CP5 browser spec or run authenticated mutations without that confirmation.
 
-
 ## FE-4.2 CP5 browser acceptance addendum (2026-09-05)
 
 - [x] Add `test/browser/fe-4-2-poll-single.spec.ts` with FE42 preflight and isolated actor/aggregate lifecycle.
@@ -1540,17 +1539,17 @@ The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-b
 
 ### Contract matrix
 
-| Event / signal | Participant visibility and payload | Future participant cache action | Forbidden/terminal behavior |
-| --- | --- | --- | --- |
-| `session.snapshot` | `visibility=participant`; `liveSession` with open participant-safe questions/`hasSubmitted`, `submittedQuestionIds`, watermark, reveal-eligible results; no selections/counts/teacher fields | Validate schema/session/visibility/watermark, then seed only `participantLiveSessions.snapshot` and eligible participant results; submitted state remains within the snapshot projection | Reject invalid actor/session/schema/visibility; access loss clears protected participant cache |
-| `session.state_changed` | `visibility=session`; `{ status }` | Invalidate participant snapshot | Terminal lifecycle is classified through REST student-status; revoked socket disconnects |
-| `question.opened` / `question.closed` | `visibility=session`; `{ sessionQuestionId }` | Invalidate participant snapshot; use authoritative participant result path | Wrong session/shape/visibility is ignored without cursor/cache mutation |
-| `result.updated` | Participant-facing envelope is always `visibility=participant`; an open-result durable row may internally use `participant_after_submit` to target only the submitting participant. Payload is `{ sessionQuestionId, results }` with anonymous reveal-safe aggregate only | Seed/invalidate only matching participant result key | Teacher visibility/counts/correctness before reveal are rejected; wrong target is rejected |
-| `session.closed` | Participant envelope is `visibility=participant`, `{ status: closed }`; gateway emits then disconnects | Invalidate participant snapshot and student-status | No protected content remains after confirmed access loss |
-| `sync.required` | One client; `{ reason, watermark }` | One recovery cycle: clear rejected cursor, await fresh server snapshot, bounded cursorless fallback only if needed | Never resend rejected cursor; `permission_invalid` is an access-loss/recovery boundary |
-| `counts.updated` | Teacher-only legacy alias; not participant-safe | No listener, cache action, or UI consumption | Participant must not subscribe or cache it |
-| `error` | Stable `{ code }` on handshake/transport rejection; may report `UNAUTHORIZED`, `SESSION_NOT_JOINABLE`, or `REALTIME_UNAVAILABLE` | Classify stable code | Raw messages/IDs/tokens never render |
-| disconnect | No stable-code payload is guaranteed; runtime enrollment/account revocation and some terminal checks disconnect directly | Retain last safe data only for transient network loss; confirmed access loss clears affected participant cache and stops reconnect | Do not infer a revocation error code from disconnect alone; classify through REST/access-state |
+| Event / signal                        | Participant visibility and payload                                                                                                                                                                                                                                        | Future participant cache action                                                                                                                                                          | Forbidden/terminal behavior                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `session.snapshot`                    | `visibility=participant`; `liveSession` with open participant-safe questions/`hasSubmitted`, `submittedQuestionIds`, watermark, reveal-eligible results; no selections/counts/teacher fields                                                                              | Validate schema/session/visibility/watermark, then seed only `participantLiveSessions.snapshot` and eligible participant results; submitted state remains within the snapshot projection | Reject invalid actor/session/schema/visibility; access loss clears protected participant cache |
+| `session.state_changed`               | `visibility=session`; `{ status }`                                                                                                                                                                                                                                        | Invalidate participant snapshot                                                                                                                                                          | Terminal lifecycle is classified through REST student-status; revoked socket disconnects       |
+| `question.opened` / `question.closed` | `visibility=session`; `{ sessionQuestionId }`                                                                                                                                                                                                                             | Invalidate participant snapshot; use authoritative participant result path                                                                                                               | Wrong session/shape/visibility is ignored without cursor/cache mutation                        |
+| `result.updated`                      | Participant-facing envelope is always `visibility=participant`; an open-result durable row may internally use `participant_after_submit` to target only the submitting participant. Payload is `{ sessionQuestionId, results }` with anonymous reveal-safe aggregate only | Seed/invalidate only matching participant result key                                                                                                                                     | Teacher visibility/counts/correctness before reveal are rejected; wrong target is rejected     |
+| `session.closed`                      | Participant envelope is `visibility=participant`, `{ status: closed }`; gateway emits then disconnects                                                                                                                                                                    | Invalidate participant snapshot and student-status                                                                                                                                       | No protected content remains after confirmed access loss                                       |
+| `sync.required`                       | One client; `{ reason, watermark }`                                                                                                                                                                                                                                       | One recovery cycle: clear rejected cursor, await fresh server snapshot, bounded cursorless fallback only if needed                                                                       | Never resend rejected cursor; `permission_invalid` is an access-loss/recovery boundary         |
+| `counts.updated`                      | Teacher-only legacy alias; not participant-safe                                                                                                                                                                                                                           | No listener, cache action, or UI consumption                                                                                                                                             | Participant must not subscribe or cache it                                                     |
+| `error`                               | Stable `{ code }` on handshake/transport rejection; may report `UNAUTHORIZED`, `SESSION_NOT_JOINABLE`, or `REALTIME_UNAVAILABLE`                                                                                                                                          | Classify stable code                                                                                                                                                                     | Raw messages/IDs/tokens never render                                                           |
+| disconnect                            | No stable-code payload is guaranteed; runtime enrollment/account revocation and some terminal checks disconnect directly                                                                                                                                                  | Retain last safe data only for transient network loss; confirmed access loss clears affected participant cache and stops reconnect                                                       | Do not infer a revocation error code from disconnect alone; classify through REST/access-state |
 
 ### Source references and working notes
 
@@ -1588,15 +1587,49 @@ The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-b
 
 ### Baseline evidence — 2026-09-05 rerun after FE-4.2 type repair
 
-| Command | Result | Evidence |
-| --- | --- | --- |
-| `npm test -- test/realtime-adapter.test.tsx test/participant-live-sessions-api.test.tsx` | PASS | 2 files / 21 tests; 0 failed, 0 skipped. |
-| `npm run typecheck` | PASS | No TypeScript diagnostics. |
-| `npm run lint:check` | PASS | 0 errors; 6 non-blocking warnings (React Hook Form `watch()` compatibility and unused browser-test locals). |
-| `npm test` | PASS | 33 files / 270 tests; 0 failed, 0 skipped. |
-| `npm run build` | PASS | Next.js 16.3.1 production build succeeded; typecheck and static generation passed; 15 routes generated. |
-| `git diff --check` | PASS | No whitespace errors. |
+| Command                                                                                  | Result | Evidence                                                                                                    |
+| ---------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| `npm test -- test/realtime-adapter.test.tsx test/participant-live-sessions-api.test.tsx` | PASS   | 2 files / 21 tests; 0 failed, 0 skipped.                                                                    |
+| `npm run typecheck`                                                                      | PASS   | No TypeScript diagnostics.                                                                                  |
+| `npm run lint:check`                                                                     | PASS   | 0 errors; 6 non-blocking warnings (React Hook Form `watch()` compatibility and unused browser-test locals). |
+| `npm test`                                                                               | PASS   | 33 files / 270 tests; 0 failed, 0 skipped.                                                                  |
+| `npm run build`                                                                          | PASS   | Next.js 16.3.1 production build succeeded; typecheck and static generation passed; 15 routes generated.     |
+| `git diff --check`                                                                       | PASS   | No whitespace errors.                                                                                       |
 
 **Diagnosis:** the minimal FE-4.2 browser-test annotation now correctly distinguishes Playwright browser `Response` from request-context `APIResponse`. All CP0 gates pass. No participant realtime code was changed, and the remaining warnings are non-blocking.
 
 **Scope evidence:** the working tree changes are limited to `tasks/todo.md` and `test/browser/fe-4-2-poll-single.spec.ts`; no backend, WBS, environment, dependency, or participant realtime product files were changed. No credentials or protected test data were recorded.
+
+## FE-4.3 CP1 — 2026-09-05
+
+- [x] Added participant-specific realtime snapshot wire type and fail-closed envelope guards.
+- [x] Added lossless reconnect cursor update/clear and reconnect lifecycle status handling.
+- [x] Added canonical large-sequence and malformed-envelope regression tests.
+- [x] Ran targeted realtime tests, typecheck, lint, and diff check.
+
+**Results:** 13 targeted tests passed; typecheck passed; lint passed with 6 existing warnings and 0 errors; diff check passed. CP1 stops here pending explicit `GO CP2`.
+
+## FE-4.3 CP2 — 2026-09-05
+
+- [x] Added participant-only realtime event adapter with no `counts.updated` listener.
+- [x] Seeded/invalidation actions use only `queryKeys.participantLiveSessions.*`; submitted state maps to `hasSubmitted`.
+- [x] Mounted `useLiveConnection` and participant adapter in `LearnerLiveSessionView`; added accessible transient connection notice.
+- [x] Ran focused learner/realtime tests, typecheck, lint, Prettier, and diff check.
+
+**Results:** participant adapter and learner integration are implemented. Focused learner/realtime verification passed (2 files / 38 tests), typecheck passed, lint passed with 6 pre-existing warnings and 0 errors, Prettier passed, and `git diff --check` passed. The planned `test/participant-realtime-adapter.test.tsx` did not yet exist, so its requested command could not run. CP2 stops here pending explicit `GO CP3`.
+
+**Known limitation:** deep participant payload validation and single-cycle replay/snapshot recovery remain CP3 scope; CP2 does not claim revocation cleanup or browser acceptance.
+
+## FE-4.3 CP3 — 2026-09-05
+
+- [x] Added BigInt-based accepted sequence and snapshot watermark ordering; stale snapshots cannot overwrite participant cache.
+- [x] Added one bounded `sync.required` recovery cycle that clears the rejected cursor, waits for a fresh snapshot, and emits one cursorless fallback fetch.
+- [x] Added payload validation before participant cache/cursor mutation and retained participant/teacher cache isolation.
+- [x] Added focused participant adapter regressions for large cursors, stale watermark rejection, cursor clearing, one-shot fallback, counts listener exclusion, and cleanup.
+- [x] Ran focused tests, typecheck, lint, Prettier, and diff check.
+
+**Results:** CP3 implementation and focused verification passed: 2 files / 16 tests, typecheck, and diff check passed; lint passed with 6 pre-existing warnings and 0 errors. Added `test/participant-realtime-adapter.test.tsx`. Recovery does not resend a rejected cursor, and fresh snapshot adoption clears the bounded fallback timer. The existing Vite config-loader warning and unrelated lint warnings remain non-blocking.
+
+**Scope:** changed `lib/live/use-participant-live-session-events.ts`, `test/participant-realtime-adapter.test.tsx`, and this task record. No backend, WBS, environment, dependency, or commit changes.
+
+**Known limitation:** CP3 does not claim revocation cleanup or real-browser acceptance; those remain CP4/CP5 scope.

@@ -7,6 +7,8 @@ import { useLiveConnection } from "@/lib/live/socket-client";
 import { useLiveSessionEvents } from "@/lib/live/use-live-session-events";
 import {
   RealtimeEvent,
+  isCanonicalEventSeq,
+  isValidRealtimeEnvelope,
   type RealtimeEventEnvelope,
   type RealtimeSnapshotData,
 } from "@/lib/live/realtime-types";
@@ -20,6 +22,7 @@ const mocks = vi.hoisted(() => {
     listeners.get(event)?.forEach((cb) => cb(...args));
   };
   const socket = {
+    auth: {} as Record<string, unknown>,
     connected: false,
     on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       if (!listeners.has(event)) listeners.set(event, new Set());
@@ -42,9 +45,9 @@ const mocks = vi.hoisted(() => {
   return {
     socket,
     listeners,
-    io: vi.fn((url: string, opts: unknown) => {
+    io: vi.fn((url: string, opts: { auth?: Record<string, unknown> }) => {
       void url;
-      void opts;
+      socket.auth = opts.auth ?? {};
       return socket;
     }),
     emit,
@@ -130,7 +133,56 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.listeners.clear();
   mocks.socket.connected = false;
+  mocks.socket.auth = {};
   seqCounter = 0;
+});
+
+describe("realtime wire validation (FE-4.3.1/4.3.2)", () => {
+  it("accepts canonical large cursors without numeric coercion", () => {
+    expect(isCanonicalEventSeq("9007199254740993")).toBe(true);
+    expect(isCanonicalEventSeq("01")).toBe(false);
+    expect(isCanonicalEventSeq("-1")).toBe(false);
+  });
+
+  it("rejects malformed actor/session/event/visibility envelopes", () => {
+    const valid = envelope(
+      RealtimeEvent.SESSION_STATE_CHANGED,
+      { status: "active" },
+      "9007199254740993",
+    );
+    valid.visibility = "participant";
+    expect(
+      isValidRealtimeEnvelope(
+        valid,
+        "session-1",
+        RealtimeEvent.SESSION_STATE_CHANGED,
+      ),
+    ).toBe(true);
+    expect(
+      isValidRealtimeEnvelope({ ...valid, schemaVersion: 2 }, "session-1"),
+    ).toBe(false);
+    expect(
+      isValidRealtimeEnvelope(
+        { ...valid, liveSessionId: "other" },
+        "session-1",
+      ),
+    ).toBe(false);
+    expect(
+      isValidRealtimeEnvelope(
+        { ...valid, event: "counts.updated" },
+        "session-1",
+      ),
+    ).toBe(false);
+    expect(
+      isValidRealtimeEnvelope({ ...valid, visibility: "teacher" }, "session-1"),
+    ).toBe(false);
+    expect(
+      isValidRealtimeEnvelope(
+        { ...valid, eventSeq: "9007199254740993.0" },
+        "session-1",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("useLiveConnection (FE-3.2.1/3.2.2/3.2.4/3.2.6)", () => {
@@ -150,6 +202,18 @@ describe("useLiveConnection (FE-3.2.1/3.2.2/3.2.4/3.2.6)", () => {
     });
     // The mock connects synchronously, so the socket is already connected.
     expect(result.current.status).toBe("connected");
+  });
+
+  it("updates and clears the lossless reconnect cursor", () => {
+    const queryClient = makeQueryClient();
+    const { result } = renderHook(() => useLiveConnection("session-1"), {
+      wrapper: wrapperFor(queryClient),
+    });
+
+    act(() => result.current.acceptEventSeq("9007199254740993"));
+    expect(mocks.socket.auth.lastEventSeq).toBe("9007199254740993");
+    act(() => result.current.acceptEventSeq(null));
+    expect(mocks.socket.auth).not.toHaveProperty("lastEventSeq");
   });
 
   it("does not connect when the id is empty", () => {

@@ -2009,3 +2009,11 @@ Risk: medium; the next checkpoint touches learner submission, idempotency, anony
 - **Result:** **FAIL/BLOCKED before browser diagnostics**. The retry reached the UI test but admin login returned HTTP 401 instead of the expected 201. `/auth/session` response/DOM instrumentation was therefore not reached.
 - **Fixture evidence:** `/tmp/fe51-bootstrap.log` contains a Prisma startup error; the disposable admin fixture was not usable. No Poll Multiple assertions or WBS updates were performed.
 - **Decision:** FE-5.1 remains **REAL-BACKEND BLOCKED/NOT CLOSED**. Next attempt must resolve the compiled bootstrap configuration and ensure the fresh Next process owns the diagnostic HTTPS origin before rerunning.
+
+### Bootstrap correction and browser diagnostic — 2026-09-06
+
+- **Correction:** host-side `tsx` bootstrap was replaced with the compiled runtime entrypoint `node dist/src/bootstrap/bootstrap-admin.js`; the prior `ConfigService` startup error was thereby avoided. No production backend source was changed.
+- **Runtime:** fresh isolated migration exited `0`; `/health/live` and `/health/ready` returned `200`; compiled admin bootstrap and HTTPS-proxy admin login returned `201`; `SESSION_COOKIE_SECURE=true` remained enabled. Disposable resources were torn down without touching development/shared services.
+- **Browser diagnostics:** reached `https://localhost:3443/settings/password`; browser-side `/auth/session` returned `200`; `目前密碼` count was `1`; DOM contained all three password fields. The settings route/render blocker is resolved.
+- **Result:** **FAIL/BLOCKED** in Poll Multiple submission setup: `送出答案` remained disabled after the expected 5-second wait. No submission/replay/result/privacy acceptance passed; cleanup archive reported failure after the primary assertion failed.
+- **Decision:** FE-5.1 remains **REAL-BACKEND BLOCKED/NOT CLOSED**. Next blocker is the disabled submit state in the Poll Multiple flow; WBS checkboxes remain unchanged.

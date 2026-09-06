@@ -171,6 +171,14 @@ export interface SubmitPollSingleVariables {
   actor?: ParticipantActor;
 }
 
+export interface SubmitPollMultipleVariables {
+  liveSessionId: string;
+  sessionQuestionId: string;
+  optionIds: [string, ...string[]];
+  idempotencyKey: string;
+  actor?: ParticipantActor;
+}
+
 /** Submit one formal option UUID; retries are caller-controlled. */
 export function useSubmitPollSingle() {
   return useMutation<
@@ -192,6 +200,37 @@ export function useSubmitPollSingle() {
           body: {
             sessionQuestionId,
             selectedOptionRefs: [optionId],
+          } satisfies CreateSubmissionPayload,
+          mutate: true,
+          idempotencyKey,
+          auth: participantAuth(actor),
+        },
+      ),
+    retry: false,
+  });
+}
+
+/** Submit a non-empty set of formal option UUIDs; retries are caller-controlled. */
+export function useSubmitPollMultiple() {
+  return useMutation<
+    { data: SubmissionDto; status: number },
+    ApiRequestError,
+    SubmitPollMultipleVariables
+  >({
+    mutationFn: ({
+      liveSessionId,
+      sessionQuestionId,
+      optionIds,
+      idempotencyKey,
+      actor = STUDENT_ACTOR,
+    }) =>
+      apiRequestWithStatus<SubmissionDto>(
+        `/live-sessions/${liveSessionId}/submissions`,
+        {
+          method: "POST",
+          body: {
+            sessionQuestionId,
+            selectedOptionRefs: optionIds,
           } satisfies CreateSubmissionPayload,
           mutate: true,
           idempotencyKey,

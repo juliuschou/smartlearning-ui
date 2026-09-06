@@ -464,6 +464,7 @@ describe("MyCoursesView — FE-4.1 join entry (CP2)", () => {
       method: "POST",
       body: {},
       mutate: true,
+      auth: { kind: "session" },
     });
   });
 

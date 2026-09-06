@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/api/query-keys";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { PollSingleQuestion } from "@/features/live-student/PollSingleQuestion";
+import { PollMultipleQuestion } from "@/features/live-student/PollMultipleQuestion";
 import { ApiRequestError } from "@/lib/api/client";
 import {
   useParticipantSnapshot,
@@ -134,10 +135,10 @@ export function LearnerLiveSessionView({
             : {})}
         />
         {retainedQuestion ? (
-          <PollSingleQuestion
+          <QuestionRenderer
             question={{ ...retainedQuestion, status: "closed" }}
             actor={actor}
-            onParticipantAccessLoss={clearProtectedContent}
+            onAccessLoss={clearProtectedContent}
           />
         ) : null}
       </>
@@ -189,12 +190,10 @@ export function LearnerLiveSessionView({
               }}
             />
             {retainedQuestion ? (
-              <PollSingleQuestion
+              <QuestionRenderer
                 question={{ ...retainedQuestion, status: "closed" }}
                 actor={actor}
-                onParticipantAccessLoss={
-                  actor.kind === "anonymous" ? clearProtectedContent : undefined
-                }
+                onAccessLoss={clearProtectedContent}
               />
             ) : null}
           </>
@@ -339,13 +338,33 @@ function OpenQuestion({
   onAccessLoss: () => void;
 }) {
   return (
-    <PollSingleQuestion
+    <QuestionRenderer
       question={question}
       actor={actor}
-      onParticipantAccessLoss={
-        actor.kind === "anonymous" ? onAccessLoss : undefined
-      }
+      onAccessLoss={onAccessLoss}
     />
+  );
+}
+
+function QuestionRenderer({
+  question,
+  actor,
+  onAccessLoss,
+}: {
+  question: SessionQuestion;
+  actor: ParticipantActor;
+  onAccessLoss: () => void;
+}) {
+  const props = {
+    question,
+    actor,
+    onParticipantAccessLoss:
+      actor.kind === "anonymous" ? onAccessLoss : undefined,
+  };
+  return question.snapshotSelectionMode === "multiple" ? (
+    <PollMultipleQuestion {...props} />
+  ) : (
+    <PollSingleQuestion {...props} />
   );
 }
 

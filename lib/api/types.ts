@@ -81,7 +81,7 @@ export type ParticipantActor =
 /** `POST /live-sessions/:id/submissions` request body for a poll answer. */
 export interface CreateSubmissionPayload {
   sessionQuestionId: string;
-  selectedOptionRefs: [string];
+  selectedOptionRefs: [string, ...string[]];
 }
 
 /** Immutable submission response returned by the live-session API. */

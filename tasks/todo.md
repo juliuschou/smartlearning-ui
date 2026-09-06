@@ -1225,6 +1225,16 @@ Frontend must use stable codes and allowlisted projections only; it must not par
 ### User disposition and rollback
 
 - User reviewed the contract table and chose **補 backend 契約（建議）**: backend must first provide a server-backed learner snapshot state for `closed`/`cancelled`, explicitly freeze the student-only snapshot role boundary, and add join/snapshot OpenAPI response assertions if those schemas are part of the freeze authority.
+
+## 2026-09-06 — FE-5.1 Poll Multiple Checkpoint 3 Results
+
+- **Status:** PARTIALLY VERIFIED; isolated runtime/browser fixture completed and cleaned up. CP4 remains pending.
+- **Runtime:** isolated Compose project `smartlearning-fe51-cp3`; migration exit `0`; backend `/health/live` and `/health/ready` returned `200`; UI ran on `localhost:3001` against backend `localhost:3000`.
+- **Fixture safety:** created disposable admin/teacher/student accounts, course, Poll Multiple question, active LiveSession, and anonymous participant only in the named isolated project. The project, volumes, and network were removed afterward. No shared/dev database or unrelated container was touched.
+- **Manual browser evidence:** real Chromium flow passed native checkbox rendering, `fieldset`/`legend`, `可複選`, long-text wrapping, keyboard Space selection, empty-submit disabled state, two-option submission, single request under double-click, submitted lock, participant-safe anonymous results, and mobile `390px` no-horizontal-overflow. Evidence: `/tmp/fe51-cp3-evidence/cp3-desktop-light.png`, `/tmp/fe51-cp3-evidence/cp3-desktop-light-submitted.png`, `/tmp/fe51-cp3-evidence/cp3-mobile-dark-submitted.png`.
+- **Observed gaps:** color-scheme emulation did not produce a visibly distinct dark palette; response-loss/same-key permutation retry and anonymous credential-loss cleanup were not exercised. These remain unverified and prevent full CP3 PASS.
+- **Static/runtime discovery:** `npm run test:browser -- --list` discovered 8 Chromium specs. This is discovery evidence only and no FE-5.1 CP4 browser spec was added.
+- **Scope:** no WBS checkbox update, migration outside the isolated fixture, product backend change, mock API, or commit-time generated artifact was added by this CP3 run. Continue only with explicit CP4 authorization after resolving or accepting the listed gaps.
 - This is a CP0 disposition only, not authorization to start CP1 or to modify frontend files. CP1 remains blocked until the backend contract is implemented and CP0 is revalidated.
 - Rollback is documentation-only for this checkpoint: remove this FE-4.1 task-log section if rejected. Existing frontend/backend source, runtime data, migrations, and prior task records are untouched.
 
@@ -1774,7 +1784,6 @@ The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-b
 
 **Results:** The missing `/live` observation was a false negative caused by checking the raw WebSocket transport URL for a Socket.IO namespace. The transport uses `/socket.io/`; the `/live` namespace is negotiated in Socket.IO frames. The focused CP5 E2E now passes.
 
-
 ## FE-4.4 Checkpoint 5 — shared participant-safe UI (2026-09-05)
 
 - [x] Added `actor` prop to `LearnerLiveSessionView` with student default and anonymous actor-aware snapshot/cache wiring.
@@ -1825,3 +1834,115 @@ The browser spec reuses the FE-4.1 secure-cookie, same-host preflight, context-b
 - **Compatibility:** existing teacher deep links using `/live/:id` must be changed to `/teacher/live/:id`; no redirect can coexist at `/live/:id` because that path is now intentionally public for anonymous participants.
 - **Status:** implementation complete; route/build/typegen/browser discovery verification passed. Real-backend FE-4.4 execution remains fixture-gated.
 - **Verification:** `npx next typegen` passed; targeted route tests passed (3 files / 4 tests); `npm run typecheck` passed; `npm run build` passed with distinct `/live/[liveSessionId]` and `/teacher/live/[liveSessionId]` routes; `npm run lint:check` passed with existing warnings; browser discovery passed with 8 specs; `git diff --check` passed.
+
+## 2026-09-06 — FE-5.1 Poll Multiple Checkpoint 1: backend readiness and WBS reconciliation
+
+### Context and acceptance criteria
+
+Checkpoint 1 verifies the existing backend contract before any Poll Multiple frontend production code is added.
+
+- [ ] Poll multiple accepts one through all snapshot options and rejects empty selections.
+- [ ] Duplicate, unknown, missing, and invalid option references fail closed.
+- [ ] Submitted option references are canonicalized to formal snapshot option UUIDs.
+- [ ] Same-idempotency-key permutations replay the immutable authoritative submission; a different set remains a stable conflict.
+- [ ] Results count each selected option while `totalResponses` counts submissions; option-count sum may exceed `totalResponses`.
+- [ ] Open/closed result visibility remains participant-safe, with no correctness or identity leakage.
+- [ ] Student and anonymous actor isolation, access-loss cleanup, and realtime behavior remain outside this documentation-only checkpoint and must not regress in later work.
+
+### CP1 checklist
+
+- [x] Read backend DTO, answer contract, canonicalization, idempotency, result projection, and participant visibility paths.
+- [x] Attempt the focused DB-backed backend e2e through the dedicated test subagent; record the exact blocker.
+- [x] Produce the contract matrix and backend disposition.
+- [x] Confirm WBS remains unchanged and no frontend production/test code is modified.
+- [ ] Stop at CP1 and wait for explicit user confirmation before FE-5.1 Checkpoint 2.
+
+### Contract matrix (static evidence)
+
+| Contract item                | Backend evidence                                                                                                                                                                                          | Disposition   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| At least one selection       | `src/modules/submissions/domain/answer-contract.ts` requires poll-multiple cardinality >= 1 and <= snapshot options.                                                                                      | PASS (static) |
+| Duplicate/unknown rejection  | `answer-contract.ts` rejects duplicates and refs outside the snapshot option set before set comparison.                                                                                                   | PASS (static) |
+| Formal UUID canonicalization | `src/modules/submissions/application/submission.service.ts` maps submitted optionRef values to formal snapshot option UUIDs before persistence/response.                                                  | PASS (static) |
+| Same-key permutation replay  | `answer-contract.ts` uses sorted `canonicalRefFingerprint`; `submission.service.ts` compares the canonical set for idempotent replay while preserving the first immutable answer.                         | PASS (static) |
+| Immutable first answer       | `submission.service.ts` returns the existing authoritative submission for an equivalent replay and conflicts on a genuinely different set.                                                                | PASS (static) |
+| Aggregate semantics          | `src/modules/live-sessions/domain/question-results.ts` and `api/dto/results.dto.ts` count each selected option, while `totalResponses` counts submissions; no equality between the two totals is assumed. | PASS (static) |
+| Open/closed reveal           | `src/modules/participants/api/participants.controller.ts` and participant services keep teacher visibility distinct and gate participant results; participant-safe projections omit correctness/identity. | PASS (static) |
+
+### Backend disposition
+
+**PARTIALLY VERIFIED**. Static contract review is READY for frontend implementation, but the focused DB-backed runtime test is BLOCKED: the backend test setup requires the exact `smartlearning_test` database, while Docker is unavailable and `pg_isready` is not installed, so PostgreSQL reachability/migration readiness cannot be confirmed. No e2e test was executed and no runtime data was mutated.
+
+### Dependencies and environment
+
+- Node 24+, installed backend dependencies, migrated isolated `smartlearning_test`, and explicit authorization for the mutating e2e are required.
+- Runtime command: `cd /home/user/projects/smartLearning/smartLearning-backend && NODE_ENV=test npm run test:e2e -- --runInBand --silent test/poll-multiple-live-flow.e2e-spec.ts`.
+- No mock API, placeholder data, WBS edit, or frontend production workaround is permitted.
+
+### Risk and rollback
+
+Risk: medium; the next checkpoint touches learner submission, idempotency, anonymous auth, and participant-safe results. CP1 itself changes only this task record. Rollback is removal of this FE-5.1 CP1 section; no product, backend, schema, WBS, or runtime-data rollback is needed.
+
+### Working notes
+
+- Backend test coverage is authoritative for lifecycle, permutation replay, invalid cardinality/duplicates, aggregation, and post-close behavior in `test/poll-multiple-live-flow.e2e-spec.ts`.
+- The WBS checkbox is intentionally not updated at CP1; current WBS entries FE-5.1.1–FE-5.1.4 remain unchecked.
+- Runtime evidence is blocked by unavailable Docker/PostgreSQL reachability; static inspection and presence of the dedicated e2e are not claimed as runtime proof.
+- Frontend `format:check` is unavailable in this repository; later checks should use available typecheck/lint/build/test and targeted Prettier checks.
+
+### CP1 Results — PARTIALLY VERIFIED (2026-09-06)
+
+- **Static contract:** PASS. Backend evidence confirms non-empty poll-multiple validation, duplicate/unknown rejection, formal snapshot UUID canonicalization, sorted-set idempotency replay, immutable first answer, independent `totalResponses` semantics, and participant-safe open/closed visibility.
+- **Runtime command:** BLOCKED before execution. The dedicated test subagent confirmed the suite and migrations exist, but Docker has no available socket and `pg_isready` is unavailable; PostgreSQL reachability and isolated `smartlearning_test` readiness could not be established. No DB-backed e2e ran.
+- **Scope:** only `tasks/todo.md` changed. No frontend production/test file, backend source, WBS checkbox, dependency, environment file, schema, migration, or runtime data was changed.
+- **Next boundary:** stop at CP1. FE-5.1 Checkpoint 2 requires explicit user confirmation and an available/authorized isolated backend environment if runtime evidence is desired.
+
+### CP2 Results — PASS (2026-09-06)
+
+- **Implemented:** added Poll Multiple transport/types, a v3 actor-qualified durable-attempt helper, checkbox renderer with canonical response checks and participant-safe result projection, and active/retained learner dispatcher wiring.
+- **Regression fix:** updated `test/my-courses-view.test.tsx` to assert the existing session auth descriptor on the join request; no production transport behavior changed.
+- **Poll Multiple coverage:** added `test/poll-multiple-submission-attempt.test.ts` and `test/poll-multiple-question.test.tsx`, covering canonical permutation fingerprints, invalid selections, actor/stale/storage isolation, checkbox submission, durable idempotency retry, HTTP 201 canonical response validation, fail-closed behavior, result alignment/`totalResponses`, unsupported shapes, and anonymous access loss.
+- **Verification:** focused Poll Multiple tests PASS (2 files / 13 tests); `npm test` PASS (38 files / 304 tests); `npm run typecheck` PASS; `npm run build` PASS; `npm run lint:check` PASS with 0 errors and 10 existing warnings; targeted Prettier check PASS after formatting; `git diff --check` PASS.
+- **Warnings:** Vitest emits the existing Vite config-loader/ESM warning; ESLint emits existing React/compiler and unused-variable warnings. No new blocking warnings were introduced.
+- **Scope:** WBS remains unchanged; no backend, schema, migration, dependency, environment, or runtime-data changes were made. No real backend/browser acceptance was claimed because it was outside this checkpoint.
+- **Decision:** FE-5.1 Checkpoint 2 is complete. Stop here and wait for explicit user confirmation before starting Checkpoint 3.
+
+## 2026-09-06 — FE-5.1 Poll Multiple Checkpoint 3: manual visual/accessibility validation
+
+### Goal and acceptance criteria
+
+- [x] Add the visible `可複選` hint and preserve snapshot option order.
+- [x] Provide explicit keyboard-visible focus treatment for native checkbox controls.
+- [x] Keep empty, pending, and submitted states fail-closed; preserve durable attempts on conflict.
+- [x] Show curated `SUBMISSION_CONFLICT` feedback for non-201 or mismatched canonical responses.
+- [ ] Validate the actual runtime manually across desktop/mobile, light/dark themes, keyboard interaction, long text, retry, result states, and anonymous access loss.
+
+### Checklist
+
+- [x] A — inspect authoritative CP3 requirements and current implementation gaps.
+- [x] B — add the multiple-selection hint, focus treatment, and conflict feedback.
+- [x] C — add focused regression tests for the CP3 corrections.
+- [x] D — run full static/unit verification and browser discovery.
+- [x] E — run actual frontend/backend runtime manual inspection with an isolated authorized fixture.
+- [x] F — record the observation matrix and checkpoint disposition.
+
+### Risk & Rollback
+
+- Risk: medium — learner submission feedback, keyboard UX, and participant-safe result presentation; no backend, schema, migration, dependency, environment, or database changes.
+- Rollback: revert only the CP3 Poll Multiple UI/tests and this task-log section; preserve unrelated working-tree changes and runtime data. Do not update WBS.
+
+### Dependencies & Environment
+
+- Node 24+, Next.js 16.3.1, installed UI dependencies, and a real frontend/backend runtime with migrated isolated data are required for manual acceptance.
+- No mocks, placeholder API, or runtime fallback may substitute for the manual backend flow. The UI has no theme toggle; light/dark validation requires browser color-scheme emulation.
+
+### Results — STATIC PASS / RUNTIME BLOCKED (2026-09-06)
+
+- **Implementation:** added visible `可複選` guidance, explicit `focus-within` keyboard focus styling, and curated `SUBMISSION_CONFLICT` feedback while preserving the durable attempt for retry. The canonical success path remains HTTP 201 plus exact-set validation and accepts response permutations.
+- **Focused verification:** Poll Multiple tests passed (2 files / 13 tests).
+- **Full verification:** `npm test` passed (38 files / 304 tests); `npm run typecheck` passed; `npm run lint:check` passed with 0 errors and 10 warnings; `npm run build` passed with 13/13 static generation; targeted Prettier passed; `git diff --check` passed.
+- **Browser discovery:** `npm run test:browser -- --list` passed and listed 8 browser tests in 8 files. No FE-5.1 CP4 browser spec was added.
+- **Runtime preflight:** `localhost:3000` and `localhost:3001` were unreachable by non-mutating curl checks. No service was started, no authenticated browser mutation was attempted, and no database/runtime data was changed.
+- **Manual observation matrix:** **BLOCKED** — actual desktop/mobile, light/dark, keyboard, long-text, pending/submitted, retry, result visibility, and anonymous access-loss observations could not be performed without the required runtime and isolated fixture. Static/unit evidence is not claimed as manual runtime evidence.
+- **Scope:** WBS FE-5.1.1–FE-5.1.4 remains unchanged and unchecked; no backend/schema/migration/dependency/environment changes; no CP4 browser spec or real-backend acceptance was claimed.
+- **Decision:** Checkpoint 3 implementation corrections and static verification are complete, but CP3 overall remains **BLOCKED** pending an available authorized runtime/fixture. Stop here and wait for explicit confirmation before Checkpoint 4.

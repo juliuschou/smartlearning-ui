@@ -133,3 +133,10 @@
 - **偵測訊號**：backend log 同時出現 `request aborted`（`statusCode:null`）與後續 `request completed`（`statusCode:200`）；Playwright 報 `did not return JSON`。
 - **預防規則**：對需要解析 body 的 Playwright response wait，除了 URL/method 外加入預期 HTTP status（本案例 `response.status() === 200`），避免把 aborted/非最終 response 當成成功資料。
 - **Tripwire**：任何 `waitForResponse` 後立即呼叫 `json()` 的 browser helper，檢查 predicate 是否排除 status 0/aborted response；real-backend rerun 必須驗證實際 body parse。
+
+## Vitest does not support Jest's `--runInBand`
+
+- **失敗模式**：將 Jest 的 `--runInBand` 參數套到 frontend `npm test`，Vitest 直接以 `CACError: Unknown option --runInBand` 結束，未執行任何測試。
+- **偵測訊號**：輸出明確指出 `Unknown option \`--runInBand\``。
+- **預防規則**：frontend Vitest targeted commands 不帶 `--runInBand`；只有 backend Jest e2e 使用該參數。
+- **Tripwire**：執行 frontend `npm test -- <files>` 前先依 `package.json` 確認 runner 是 Vitest，而非沿用 backend Jest 指令。

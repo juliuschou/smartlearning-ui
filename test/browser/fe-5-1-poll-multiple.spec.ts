@@ -255,6 +255,8 @@ async function loginViaUi(
   username: string,
   password: string,
   next: string,
+  expectedRole: "admin" | "teacher" | "student",
+  expectedMustChangePassword: boolean,
   onLoginSuccess?: () => void,
 ) {
   await page.goto(`/login?next=${encodeURIComponent(next)}`, {
@@ -293,14 +295,25 @@ async function loginViaUi(
   if (loginResponse) {
     expect(loginResponse.status(), "FE-5.1 UI login status").toBe(201);
   }
+  const sessionResponse = await page
+    .context()
+    .request.get(`${apiBase}/auth/session`);
+  expect(sessionResponse.status(), "FE-5.1 session status").toBe(200);
+  const session = dataFromEnvelope<JsonRecord>(
+    await readJson(sessionResponse, "FE-5.1 session"),
+    "FE-5.1 session",
+  );
+  expect(session.role, "FE-5.1 session role").toBe(expectedRole);
+  expect(session.mustChangePassword, "FE-5.1 session password gate").toBe(
+    expectedMustChangePassword,
+  );
   onLoginSuccess?.();
   const current = new URL(page.url());
-  if (
-    current.origin !== uiOrigin ||
-    (current.pathname !== destination.pathname &&
-      current.pathname !== "/settings/password")
-  ) {
-    await page.goto(destination.pathname, { waitUntil: "domcontentloaded" });
+  const expectedPath = expectedMustChangePassword
+    ? "/settings/password"
+    : destination.pathname;
+  if (current.origin !== uiOrigin || current.pathname !== expectedPath) {
+    await page.goto(expectedPath, { waitUntil: "domcontentloaded" });
   }
 }
 
@@ -311,6 +324,29 @@ async function changePasswordViaUi(
   nextPath: string,
 ) {
   await expect(page).toHaveURL(`${uiOrigin}/settings/password`);
+  const sessionResponsePromise = page
+    .waitForResponse(
+      (response) =>
+        response.url() === `${uiOrigin}/api/v1/auth/session` ||
+        response.url() === `${apiBase}/auth/session`,
+      { timeout: 5_000 },
+    )
+    .catch(() => null);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const sessionResponse = await sessionResponsePromise;
+  const passwordFieldCount = await page.getByLabel("目前密碼").count();
+  const bodyText = await page.locator("body").innerText();
+  console.log(
+    JSON.stringify({
+      diagnostic: "FE-5.1 password page",
+      url: page.url(),
+      sessionResponse: sessionResponse
+        ? { status: sessionResponse.status(), ok: sessionResponse.ok() }
+        : null,
+      passwordFieldCount,
+      bodyText: bodyText.slice(0, 500),
+    }),
+  );
   await page.getByLabel("目前密碼").fill(currentPassword);
   await page.getByLabel("新密碼", { exact: true }).fill(newPassword);
   await page.getByLabel("確認新密碼", { exact: true }).fill(newPassword);
@@ -822,6 +858,8 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
         adminUsername,
         adminPassword,
         "/admin",
+        "admin",
+        false,
         () => {
           adminLoggedIn = true;
         },
@@ -868,6 +906,21 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
           teacherTempPassword,
         );
         createdAccountIds.push(teacher.id);
+        await stepUp(adminContext.request, adminContext, adminPassword);
+        const forceChange = await adminContext.request.post(
+          `${apiBase}/admin/accounts/${teacher.id}/require-password-change`,
+          {
+            headers: {
+              Origin: uiOrigin,
+              "X-CSRF-Token": await csrfToken(adminContext),
+            },
+            data: { mustChangePassword: true },
+          },
+        );
+        expect(
+          forceChange.status(),
+          "teacher force-password-change status",
+        ).toBe(201);
       }
 
       await logoutContext(adminContext.request, adminContext);
@@ -880,6 +933,8 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
         teacherUsernameUsed,
         teacherTempPassword ?? teacherPasswordUsed,
         "/teacher",
+        "teacher",
+        true,
         () => {
           teacherLoggedIn = true;
         },
@@ -927,6 +982,8 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
         studentUsername,
         studentTempPassword,
         "/student",
+        "student",
+        true,
         () => {
           studentLoggedIn = true;
         },
@@ -1135,6 +1192,8 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
         otherStudentUsername,
         otherStudentTempPassword,
         "/student",
+        "student",
+        true,
         () => {
           otherStudentLoggedIn = true;
         },
@@ -1253,6 +1312,8 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
         adminUsername,
         adminPassword,
         "/admin",
+        "admin",
+        false,
         () => {
           adminLoggedIn = true;
         },

@@ -1985,3 +1985,27 @@ Risk: medium; the next checkpoint touches learner submission, idempotency, anony
 - **Runtime acceptance:** **BLOCKED**. The dedicated authenticated browser command was denied because the required isolated runtime/database and fixture authorization were not provided. Services were not started and no accounts, courses, sessions, submissions, or other runtime data were mutated.
 - **Scope:** no backend source, schema, migration, dependency, environment, or WBS changes. CP4 browser spec is the only new product/test file from this checkpoint; WBS FE-5.1.1–FE-5.1.4 remains unchanged and unchecked.
 - **Decision:** CP4 static implementation is complete, but real-backend acceptance remains **BLOCKED**, not PASS. Stop here and wait for explicit authorization naming the disposable runtime/database and fixture scope before attempting authenticated browser execution.
+
+### Runtime execution update — 2026-09-06
+
+- **Runtime provided:** added backend `docker-compose.fe51.yml` for Compose project `smartlearning-fe51-20260906`, with a fresh PostgreSQL volume, one-shot migration, compiled `NODE_ENV=test` backend, loopback DB port `55451`, and FE42 response-loss failpoint compatibility. Added `test/browser/FE51.env.example` and FE51 selection in `playwright.config.ts`.
+- **Authorization/safety:** user authorized use of a disposable runtime, migration, authenticated fixture mutations, and isolated cleanup. Three fresh disposable volumes were created and removed; no development/shared volume was used. Generated secrets stayed in-process and were not recorded.
+- **Preflight:** image build, migration exit 0, compiled admin bootstrap, backend health readiness, and same-host HTTPS proxy setup succeeded. The HTTPS proxy was required because browser `__Host-*` cookies need secure-cookie-compatible origin handling.
+- **Real browser attempts:** **FAIL/BLOCKED**. HTTP runtime failed because the browser context did not retain `__Host-csrf`; HTTPS runtime then reached the real UI but the fixture failed at the optional disposable teacher password-change expectation (`expected /settings/password`, received `/teacher`). No FE51 acceptance run reached Poll Multiple submission/replay/result assertions.
+- **Backend readiness test:** the attempted host-side backend e2e did not produce a completed result before the run was stopped; its app used its own ephemeral test server and emitted non-blocking Nest route warnings. Backend runtime migration itself completed successfully.
+- **Teardown:** the final disposable Compose project and volume were removed successfully after the failed attempts; no shared runtime was torn down. FE-4.2/4.3/4.4 browser regressions were not run because the dedicated FE51 gate did not pass.
+- **Decision:** FE-5.1 remains **REAL-BACKEND BLOCKED/NOT CLOSED**. The runtime/fixture scaffolding is provided, but no WBS checkbox or closeout claim is made. Remaining blocker is to reconcile the teacher forced-password fixture/login behavior, then rerun the complete zero-skip flow and regressions.
+
+### Fixture correction rerun — 2026-09-06
+
+- **Correction:** when the FE51 run provisions its own teacher, it now explicitly calls the real admin `require-password-change` endpoint before teacher login, ensuring the disposable teacher starts behind the forced-password gate.
+- **Rerun result:** **FAIL/BLOCKED**. Teacher progressed past the prior forced-password failure, but the student password-change step still expected `/settings/password` and received `/teacher` before reaching Poll Multiple assertions. This indicates the student fixture/login route state still needs diagnosis; no acceptance PASS is claimed.
+- **Static follow-up:** a transient extra-argument error introduced during diagnosis was removed; rerun `typecheck` before any further acceptance attempt. Disposable runtime was torn down successfully and no WBS changes were made.
+
+### Browser session/DOM diagnostic rerun — 2026-09-06
+
+- **Runtime:** corrected hex-only disposable secrets allowed migration and backend readiness (`/health/ready` HTTP 200). The disposable Compose project, volume, network, and containers were removed after the run; development services were untouched.
+- **Attempt:** the FE-5.1 browser diagnostic was started with one worker, but Playwright could not start its HTTPS web server because a stale Next dev server was already bound to port 3001. That stale UI process was stopped and the runtime retry was initiated.
+- **Result:** **FAIL/BLOCKED before browser diagnostics**. The retry reached the UI test but admin login returned HTTP 401 instead of the expected 201. `/auth/session` response/DOM instrumentation was therefore not reached.
+- **Fixture evidence:** `/tmp/fe51-bootstrap.log` contains a Prisma startup error; the disposable admin fixture was not usable. No Poll Multiple assertions or WBS updates were performed.
+- **Decision:** FE-5.1 remains **REAL-BACKEND BLOCKED/NOT CLOSED**. Next attempt must resolve the compiled bootstrap configuration and ensure the fresh Next process owns the diagnostic HTTPS origin before rerunning.

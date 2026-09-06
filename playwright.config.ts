@@ -9,13 +9,14 @@ import { defineConfig } from "playwright/test";
  * (docker-compose stack) — Playwright does not manage it.
  */
 const browserBaseURL =
+  process.env.FE51_UI_ORIGIN ??
   process.env.FE44_UI_ORIGIN ??
-  process.env.FE42_UI_ORIGIN ??
   process.env.FE41_UI_ORIGIN ??
   process.env.FE22_UI_ORIGIN ??
   process.env.FE13_UI_ORIGIN ??
   "http://localhost:3001";
 const apiBaseURL =
+  process.env.FE51_API_BASE ??
   process.env.FE44_API_BASE ??
   process.env.FE42_API_BASE ??
   process.env.FE41_API_BASE ??

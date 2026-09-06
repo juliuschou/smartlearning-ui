@@ -1947,3 +1947,41 @@ Risk: medium; the next checkpoint touches learner submission, idempotency, anony
 - **Manual observation matrix:** **BLOCKED** — actual desktop/mobile, light/dark, keyboard, long-text, pending/submitted, retry, result visibility, and anonymous access-loss observations could not be performed without the required runtime and isolated fixture. Static/unit evidence is not claimed as manual runtime evidence.
 - **Scope:** WBS FE-5.1.1–FE-5.1.4 remains unchanged and unchecked; no backend/schema/migration/dependency/environment changes; no CP4 browser spec or real-backend acceptance was claimed.
 - **Decision:** Checkpoint 3 implementation corrections and static verification are complete, but CP3 overall remains **BLOCKED** pending an available authorized runtime/fixture. Stop here and wait for explicit confirmation before Checkpoint 4.
+
+## 2026-09-06 — FE-5.1 Poll Multiple Checkpoint 4: real-backend browser acceptance
+
+### Goal and acceptance criteria
+
+- [x] Add a dedicated fail-closed `fe-5-1-poll-multiple.spec.ts` following the existing FE-4 browser conventions.
+- [x] Define isolated FE51 fixture inputs and reject missing/unsafe runtime configuration without skipping.
+- [x] Cover real lifecycle intent: teacher-owned course, multiple poll with three formal UUID options, live session, learner join, submission contract, idempotency/replay, aggregate semantics, result alignment, reveal/terminal/privacy states, and cleanup.
+- [ ] Execute the dedicated browser flow against an explicitly authorized isolated runtime with zero skips and cleanup PASS.
+- [ ] Run FE-4.2/4.3/4.4 browser regressions against a compatible isolated runtime.
+
+### Checklist
+
+- [x] A — inspect authoritative CP4 requirements, backend failpoint, and FE-4 browser patterns.
+- [x] B — add the dedicated CP4 browser spec with fixture preflight and scoped cleanup.
+- [x] C — format and typecheck the new spec; verify browser discovery.
+- [ ] D — run dedicated real-backend browser acceptance.
+- [ ] E — run compatible FE-4 browser regressions.
+- [ ] F — record zero-skip acceptance matrix and cleanup evidence.
+
+### Risk & Rollback
+
+- Risk: high — the spec creates authenticated accounts, courses, sessions, enrollments, submissions, and archive/disable side effects when run. It must use only a disposable isolated Compose/database fixture with one worker.
+- Rollback: remove only the CP4 browser spec and task-record section, or revert demonstrated CP4 test fixes; never reset shared repositories, truncate shared data, delete unrelated volumes, or disable supplied shared accounts.
+
+### Dependencies & Environment
+
+- Node 24+, Playwright, migrated backend in `NODE_ENV=test`, response-loss failpoint configured with backend `FE42_RESPONSE_LOSS_TOKEN`, running UI/backend, exact CORS/CSRF-compatible origins, and disposable FE51 credentials are required.
+- Expected variables: `FE51_API_BASE`, `FE51_UI_ORIGIN`, `FE51_ADMIN_USERNAME`, `FE51_ADMIN_PASSWORD`, `FE51_COURSE_NAME_PREFIX`, `FE51_RESPONSE_LOSS_TOKEN`; optional disposable teacher credentials are supported.
+- Authenticated browser execution requires explicit authorization naming the isolated environment/database and fixture scope. No mock or placeholder flow is acceptable.
+
+### Results — STATIC PASS / REAL-BACKEND BLOCKED (2026-09-06)
+
+- **Implementation:** added `test/browser/fe-5-1-poll-multiple.spec.ts` with fail-closed URL/fixture validation, isolated account/course/session setup, formal UUID and checkbox assertions, exact request envelope/idempotency checks, UI-intercepted response-loss recovery using the backend `x-fe42-response-loss` failpoint, same-key replay/permutation identity checks, aggregate/result/privacy/terminal checks, and scoped aggregate cleanup.
+- **Static verification:** Prettier, `npm run typecheck`, `npm run lint:check` (0 errors; existing warnings only), `git diff --check`, and `npm run test:browser -- --list` all passed; browser discovery found 9 tests including FE-5.1. No FE-4 browser regression was run.
+- **Runtime acceptance:** **BLOCKED**. The dedicated authenticated browser command was denied because the required isolated runtime/database and fixture authorization were not provided. Services were not started and no accounts, courses, sessions, submissions, or other runtime data were mutated.
+- **Scope:** no backend source, schema, migration, dependency, environment, or WBS changes. CP4 browser spec is the only new product/test file from this checkpoint; WBS FE-5.1.1–FE-5.1.4 remains unchanged and unchecked.
+- **Decision:** CP4 static implementation is complete, but real-backend acceptance remains **BLOCKED**, not PASS. Stop here and wait for explicit authorization naming the disposable runtime/database and fixture scope before attempting authenticated browser execution.

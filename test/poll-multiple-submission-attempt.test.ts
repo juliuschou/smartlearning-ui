@@ -14,6 +14,8 @@ const firstId = "01945f3e-0000-7000-8000-000000000002";
 const secondId = "01945f3e-0000-7000-8000-000000000003";
 const thirdId = "01945f3e-0000-7000-8000-000000000004";
 const options = [firstId, secondId, thirdId];
+const anonymousStorageKey =
+  "smartlearning:v3:poll-multiple:anonymous:" + sessionId + ":" + questionId;
 
 beforeEach(() => window.sessionStorage.clear());
 
@@ -66,6 +68,14 @@ describe("poll multiple submission attempts", () => {
       getPollMultipleSubmissionAttempt(
         sessionId,
         questionId,
+        [thirdId, firstId, secondId],
+        "anonymous",
+      ),
+    ).toEqual(attempt);
+    expect(
+      getPollMultipleSubmissionAttempt(
+        sessionId,
+        questionId,
         options,
         "student",
       ),
@@ -87,6 +97,61 @@ describe("poll multiple submission attempts", () => {
         "anonymous",
       ),
     ).toBeNull();
+  });
+
+  it("restores legacy v3 fingerprints without changing the replay payload or key", () => {
+    const attempt = createPollMultipleSubmissionAttempt(
+      sessionId,
+      questionId,
+      [secondId, firstId],
+      options,
+      "anonymous",
+    );
+    expect(attempt).not.toBeNull();
+    const legacyAttempt = {
+      ...attempt!,
+      optionSetFingerprint: JSON.stringify([thirdId, firstId, secondId]),
+    };
+    window.sessionStorage.setItem(
+      anonymousStorageKey,
+      JSON.stringify(legacyAttempt),
+    );
+
+    expect(
+      getPollMultipleSubmissionAttempt(
+        sessionId,
+        questionId,
+        [secondId, thirdId, firstId],
+        "anonymous",
+      ),
+    ).toEqual(legacyAttempt);
+  });
+
+  it.each([
+    ["missing", [firstId, secondId]],
+    [
+      "extra",
+      [firstId, secondId, thirdId, "01945f3e-0000-7000-8000-000000000099"],
+    ],
+  ])("removes attempts for a %s snapshot option set", (_label, snapshot) => {
+    const attempt = createPollMultipleSubmissionAttempt(
+      sessionId,
+      questionId,
+      [firstId],
+      options,
+      "anonymous",
+    );
+    expect(persistPollMultipleSubmissionAttempt(attempt!)).toBe(true);
+
+    expect(
+      getPollMultipleSubmissionAttempt(
+        sessionId,
+        questionId,
+        snapshot,
+        "anonymous",
+      ),
+    ).toBeNull();
+    expect(window.sessionStorage.getItem(anonymousStorageKey)).toBeNull();
   });
 
   it("fails safely for malformed storage and storage failures", () => {

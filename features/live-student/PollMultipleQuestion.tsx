@@ -42,9 +42,15 @@ export function PollMultipleQuestion({
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(
     storedAttempt?.optionIds ?? [],
   );
-  const [submitted, setSubmitted] = useState(question.hasSubmitted === true);
+  // A durable attempt means the client sent a submission but never received
+  // confirmation (e.g. response loss). Even if the reloaded snapshot reports
+  // hasSubmitted=true (the backend committed), the client must stay in the
+  // unconfirmed state so the same idempotency key can be replayed to confirm.
+  const [submitted, setSubmitted] = useState(
+    storedAttempt ? false : question.hasSubmitted === true,
+  );
   const [showResults, setShowResults] = useState(
-    question.hasSubmitted === true,
+    storedAttempt ? false : question.hasSubmitted === true,
   );
   const [submissionConflict, setSubmissionConflict] = useState(false);
   const mutation = useSubmitPollMultiple();

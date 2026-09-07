@@ -45,7 +45,24 @@ export function canonicalizePollMultipleOptionIds(
 }
 
 export function pollMultipleOptionSetFingerprint(optionIds: string[]) {
-  return JSON.stringify(optionIds);
+  return JSON.stringify([...optionIds].sort());
+}
+
+function parseOptionSetFingerprint(fingerprint: string) {
+  try {
+    const optionIds: unknown = JSON.parse(fingerprint);
+    if (
+      !Array.isArray(optionIds) ||
+      optionIds.some(
+        (id) => typeof id !== "string" || !UUID_PATTERN.test(id),
+      ) ||
+      new Set(optionIds).size !== optionIds.length
+    )
+      return null;
+    return optionIds as string[];
+  } catch {
+    return null;
+  }
 }
 
 export function pollMultiplePayloadFingerprint(
@@ -85,19 +102,7 @@ function validate(record: unknown): PollMultipleSubmissionAttempt | null {
       )
   )
     return null;
-  try {
-    const optionSet = JSON.parse(value.optionSetFingerprint);
-    if (
-      !Array.isArray(optionSet) ||
-      optionSet.some(
-        (id) => typeof id !== "string" || !UUID_PATTERN.test(id),
-      ) ||
-      new Set(optionSet).size !== optionSet.length
-    )
-      return null;
-  } catch {
-    return null;
-  }
+  if (!parseOptionSetFingerprint(value.optionSetFingerprint)) return null;
   return value as unknown as PollMultipleSubmissionAttempt;
 }
 
@@ -113,11 +118,16 @@ export function getPollMultipleSubmissionAttempt(
     );
     if (!raw) return null;
     const record = validate(JSON.parse(raw));
+    const storedOptionIds = record
+      ? parseOptionSetFingerprint(record.optionSetFingerprint)
+      : null;
     if (
       !record ||
+      record.actorKind !== actorKind ||
       record.liveSessionId !== liveSessionId ||
       record.sessionQuestionId !== sessionQuestionId ||
-      record.optionSetFingerprint !==
+      !storedOptionIds ||
+      pollMultipleOptionSetFingerprint(storedOptionIds) !==
         pollMultipleOptionSetFingerprint(snapshotOptionIds)
     ) {
       removePollMultipleSubmissionAttempt(

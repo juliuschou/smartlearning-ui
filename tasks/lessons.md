@@ -140,3 +140,10 @@
 - **偵測訊號**：輸出明確指出 `Unknown option \`--runInBand\``。
 - **預防規則**：frontend Vitest targeted commands 不帶 `--runInBand`；只有 backend Jest e2e 使用該參數。
 - **Tripwire**：執行 frontend `npm test -- <files>` 前先依 `package.json` 確認 runner 是 Vitest，而非沿用 backend Jest 指令。
+
+## FE51 runtime preflight must prove fresh resources and HTTPS ownership
+
+- **失敗模式**：FE51 rerun 重用了殘留 volume 或錯誤/stale Next dev process，先造成 Prisma `P1000`，修正後又在 learner join wait 遇到 Chromium TLS handshake failure 與 180 秒 timeout；另一次以不安全的 shell sourcing 解析 runtime env，遺失 required fixture variable。
+- **偵測訊號**：migration 在 fresh-run 開始前即報 authentication failure、Playwright preflight 報 required variable missing、或 `https://localhost:3443` 可連線但 join request 不出現且 Chromium 重複 TLS handshake error。
+- **預防規則**：FE51 明確分離 two-base contract：`FE51_API_BASE` 僅供 `APIRequestContext` 直連 backend，HTTPS browser bundle 固定使用 same-origin `/api/v1` 並由 `FE51_BACKEND_ORIGIN` rewrite；browser routes/waits 只能匹配 UI-origin API URL。每次 run 先以 exact project/volume query 證明資源不存在，使用不經 shell re-parse 的受控 env file，確認唯一 UI PID/port owner，所有手動 browser context 顯式設定 local TLS handling，並在 Playwright 前驗證 direct backend health、proxied health/API contract 與 browser TLS；任一 preflight 不成立就停止，不消耗完整 browser timeout。
+- **Tripwire**：runner 啟動前記錄 exact Compose project resource count 必須為 0、migration exit 0、3443 listener 必須由本次 Next process 建立；grep FE51 spec 確認 `page.route`／`waitForRequest`／`waitForResponse` 不使用 direct fixture base，並要求 `/health/ready` direct/proxied 及 `/api/v1/auth/session` proxy envelope 均符合預期後才執行 FE51 spec。

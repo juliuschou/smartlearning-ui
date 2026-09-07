@@ -4,6 +4,7 @@ import {
   test,
   type APIRequestContext,
   type APIResponse,
+  type Browser,
   type BrowserContext,
   type Response as PlaywrightResponse,
   type Page,
@@ -12,8 +13,9 @@ import {
 
 const rawApiBase = process.env.FE51_API_BASE ?? "";
 const rawUiOrigin = process.env.FE51_UI_ORIGIN ?? "";
-const apiBase = normalizeApiBase(rawApiBase);
+const fixtureApiBase = normalizeApiBase(rawApiBase);
 const uiOrigin = normalizeOrigin(rawUiOrigin);
+const browserApiBase = `${uiOrigin}/api/v1`;
 const adminUsername = process.env.FE51_ADMIN_USERNAME ?? "";
 const adminPassword = process.env.FE51_ADMIN_PASSWORD ?? "";
 const teacherUsername = process.env.FE51_TEACHER_USERNAME ?? "";
@@ -97,6 +99,13 @@ function assertFixturePreflight() {
       "FE-5.1 real-backend fixture BLOCKED: use credential-free same-host UI/API URLs with API path /api/v1 and secure-cookie-compatible origin.",
     );
   }
+}
+
+function newActorContext(browser: Browser) {
+  return browser.newContext({
+    baseURL: uiOrigin,
+    ignoreHTTPSErrors: uiOrigin.startsWith("https://"),
+  });
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -243,7 +252,7 @@ async function loginViaRequest(
   username: string,
   password: string,
 ) {
-  const response = await context.request.post(`${apiBase}/auth/login`, {
+  const response = await context.request.post(`${fixtureApiBase}/auth/login`, {
     data: { username, password },
   });
   expect(response.status(), "FE-5.1 API login status").toBe(201);
@@ -273,7 +282,7 @@ async function loginViaUi(
   const loginResponsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      response.url().endsWith("/auth/login"),
+      response.url() === `${browserApiBase}/auth/login`,
   );
   await page.getByRole("button", { name: "登入" }).click();
   let loginResponse: PlaywrightResponse | null = null;
@@ -297,7 +306,7 @@ async function loginViaUi(
   }
   const sessionResponse = await page
     .context()
-    .request.get(`${apiBase}/auth/session`);
+    .request.get(`${fixtureApiBase}/auth/session`);
   expect(sessionResponse.status(), "FE-5.1 session status").toBe(200);
   const session = dataFromEnvelope<JsonRecord>(
     await readJson(sessionResponse, "FE-5.1 session"),
@@ -326,9 +335,7 @@ async function changePasswordViaUi(
   await expect(page).toHaveURL(`${uiOrigin}/settings/password`);
   const sessionResponsePromise = page
     .waitForResponse(
-      (response) =>
-        response.url() === `${uiOrigin}/api/v1/auth/session` ||
-        response.url() === `${apiBase}/auth/session`,
+      (response) => response.url() === `${browserApiBase}/auth/session`,
       { timeout: 5_000 },
     )
     .catch(() => null);
@@ -363,7 +370,7 @@ async function createAccount(
   role: "student" | "teacher",
   tempPassword: string,
 ) {
-  const response = await request.post(`${apiBase}/admin/accounts`, {
+  const response = await request.post(`${fixtureApiBase}/admin/accounts`, {
     headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
     data: {
       username,
@@ -389,7 +396,7 @@ async function stepUp(
   context: BrowserContext,
   password: string,
 ) {
-  const response = await request.post(`${apiBase}/auth/step-up`, {
+  const response = await request.post(`${fixtureApiBase}/auth/step-up`, {
     headers: {
       Origin: uiOrigin,
       "X-CSRF-Token": await csrfToken(context),
@@ -407,7 +414,7 @@ async function disableAccount(
 ) {
   await stepUp(request, context, adminPassword);
   const response = await request.post(
-    `${apiBase}/admin/accounts/${accountId}/disable`,
+    `${fixtureApiBase}/admin/accounts/${accountId}/disable`,
     {
       headers: {
         Origin: uiOrigin,
@@ -431,7 +438,7 @@ async function createCourse(
   name: string,
   description: string,
 ) {
-  const response = await request.post(`${apiBase}/courses`, {
+  const response = await request.post(`${fixtureApiBase}/courses`, {
     headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
     data: { name, description },
   });
@@ -453,7 +460,7 @@ async function createPollQuestion(
   prompt: string,
 ) {
   const response = await request.post(
-    `${apiBase}/courses/${courseId}/questions`,
+    `${fixtureApiBase}/courses/${courseId}/questions`,
     {
       headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
       data: {
@@ -485,7 +492,7 @@ async function createLiveSession(
   courseId: string,
   questionIds: string[],
 ) {
-  const response = await request.post(`${apiBase}/live-sessions`, {
+  const response = await request.post(`${fixtureApiBase}/live-sessions`, {
     headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
     data: { courseId, questionIds },
   });
@@ -506,7 +513,7 @@ async function startSession(
   liveSessionId: string,
 ) {
   const response = await request.post(
-    `${apiBase}/live-sessions/${liveSessionId}/start`,
+    `${fixtureApiBase}/live-sessions/${liveSessionId}/start`,
     {
       headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
     },
@@ -529,7 +536,7 @@ async function openQuestion(
   sessionQuestionId: string,
 ) {
   const response = await request.post(
-    `${apiBase}/live-sessions/${liveSessionId}/questions/${sessionQuestionId}/open`,
+    `${fixtureApiBase}/live-sessions/${liveSessionId}/questions/${sessionQuestionId}/open`,
     {
       headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
     },
@@ -543,7 +550,7 @@ async function closeSession(
   liveSessionId: string,
 ) {
   const currentResponse = await request.get(
-    `${apiBase}/live-sessions/${liveSessionId}`,
+    `${fixtureApiBase}/live-sessions/${liveSessionId}`,
   );
   const currentSession = parseLiveSession(
     await readJson(currentResponse, "live-session before close"),
@@ -555,7 +562,7 @@ async function closeSession(
   );
 
   const response = await request.post(
-    `${apiBase}/live-sessions/${liveSessionId}/close`,
+    `${fixtureApiBase}/live-sessions/${liveSessionId}/close`,
     {
       headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
     },
@@ -583,7 +590,7 @@ async function cancelSession(
   liveSessionId: string,
 ) {
   const response = await request.post(
-    `${apiBase}/live-sessions/${liveSessionId}/cancel`,
+    `${fixtureApiBase}/live-sessions/${liveSessionId}/cancel`,
     {
       headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
     },
@@ -612,7 +619,7 @@ async function enrollStudent(
   studentAccountId: string,
 ) {
   const response = await request.post(
-    `${apiBase}/courses/${courseId}/enrollments`,
+    `${fixtureApiBase}/courses/${courseId}/enrollments`,
     {
       headers: { Origin: uiOrigin, "X-CSRF-Token": csrf },
       data: { studentAccountId },
@@ -635,7 +642,7 @@ async function archiveCourse(
   courseId: string,
 ) {
   const response = await request.post(
-    `${apiBase}/courses/${courseId}/archive`,
+    `${fixtureApiBase}/courses/${courseId}/archive`,
     {
       headers: {
         Origin: uiOrigin,
@@ -657,7 +664,7 @@ async function logoutContext(
   request: APIRequestContext,
   context: BrowserContext,
 ) {
-  const response = await request.post(`${apiBase}/auth/logout`, {
+  const response = await request.post(`${fixtureApiBase}/auth/logout`, {
     headers: {
       Origin: uiOrigin,
       "X-CSRF-Token": await csrfToken(context),
@@ -719,7 +726,7 @@ async function submitWithResponseLoss(
   let failpointRequest: Request | null = null;
   let failpointUsed = false;
   await page.route(
-    `${apiBase}/live-sessions/${liveSessionId}/submissions`,
+    `${browserApiBase}/live-sessions/${liveSessionId}/submissions`,
     async (route) => {
       if (failpointUsed) {
         await route.continue();
@@ -727,32 +734,55 @@ async function submitWithResponseLoss(
       }
       failpointUsed = true;
       failpointRequest = route.request();
-      await route.continue({
-        headers: {
-          ...route.request().headers(),
-          "x-fe42-response-loss": responseLossToken,
-        },
-      });
+      const backendAttempt = route
+        .fetch({
+          headers: {
+            ...route.request().headers(),
+            "x-fe42-response-loss": responseLossToken,
+          },
+        })
+        .catch(() => null);
+      await Promise.race([
+        backendAttempt,
+        new Promise((resolve) => setTimeout(resolve, 1_000)),
+      ]);
+      // The backend commits before intentionally dropping its response. Do not
+      // wait indefinitely for the internal rewrite to surface that socket reset;
+      // terminate the browser request so the mutation reaches NETWORK_ERROR.
+      await route.abort("failed");
     },
   );
 
+  const checkboxes = page.locator('input[type="checkbox"]');
+  for (const optionId of optionIds) {
+    const checkbox = page.locator(
+      `input[type="checkbox"][value="${optionId}"]`,
+    );
+    await expect(checkbox).toHaveCount(1);
+    await expect(checkbox).not.toBeChecked();
+    await checkbox.check();
+    await expect(checkbox).toBeChecked();
+  }
+  const selectedValues = await checkboxes.evaluateAll((inputs) =>
+    inputs
+      .filter((input) => (input as HTMLInputElement).checked)
+      .map((input) => (input as HTMLInputElement).value),
+  );
+  expect(selectedValues).toEqual(optionIds);
+
   const submit = page.getByRole("button", { name: "送出答案" });
   await expect(submit).toBeEnabled();
-  const responsePromise = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      response.url() ===
-        `${apiBase}/live-sessions/${liveSessionId}/submissions`,
+  const requestPromise = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      request.url() ===
+        `${browserApiBase}/live-sessions/${liveSessionId}/submissions`,
   );
   await submit.click();
-  const failedResponse = await responsePromise;
-  expect(
-    failedResponse.status(),
-    "FE-5.1 response-loss status",
-  ).toBeGreaterThanOrEqual(500);
-  await expect(
-    page.getByRole("alert").filter({ hasText: /暫時|錯誤|失敗/ }),
-  ).toBeVisible();
+  await requestPromise;
+  await expect(page.locator("#poll-multiple-error")).toContainText(
+    "無法連線到伺服器，請稍後再試。",
+  );
   if (!failpointRequest)
     throw new Error("FE-5.1 response-loss request was not captured");
   const capturedRequest = failpointRequest as Request;
@@ -767,19 +797,34 @@ async function submitWithResponseLoss(
     throw new Error("FE-5.1 submission omitted Idempotency-Key");
   expect(firstBody.selectedOptionRefs).toEqual(optionIds);
 
-  await page.unroute(`${apiBase}/live-sessions/${liveSessionId}/submissions`);
+  await page.unroute(
+    `${browserApiBase}/live-sessions/${liveSessionId}/submissions`,
+  );
   await page.reload({ waitUntil: "domcontentloaded" });
+  // The SPA must first resolve its snapshot before the poll checkboxes render;
+  // domcontentloaded alone does not imply the query settled. Wait for the
+  // restore render (any checkbox visible), then assert the persisted state.
+  const restoredCheckboxes = page.locator('input[type="checkbox"]');
+  await expect(restoredCheckboxes.first()).toBeVisible();
+  const restoredSelectedValues = await restoredCheckboxes.evaluateAll(
+    (inputs) =>
+      inputs
+        .filter((input) => (input as HTMLInputElement).checked)
+        .map((input) => (input as HTMLInputElement).value),
+  );
+  expect(restoredSelectedValues).toEqual(optionIds);
   await expect(page.getByRole("button", { name: "送出答案" })).toBeEnabled();
   const replayRequestPromise = page.waitForRequest(
     (request) =>
       request.method() === "POST" &&
-      request.url() === `${apiBase}/live-sessions/${liveSessionId}/submissions`,
+      request.url() ===
+        `${browserApiBase}/live-sessions/${liveSessionId}/submissions`,
   );
   const replayResponsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
       response.url() ===
-        `${apiBase}/live-sessions/${liveSessionId}/submissions`,
+        `${browserApiBase}/live-sessions/${liveSessionId}/submissions`,
   );
   await page.getByRole("button", { name: "送出答案" }).click();
   const replayRequest = await replayRequestPromise;
@@ -797,6 +842,8 @@ async function submitWithResponseLoss(
   );
   expect(submission.sessionQuestionId).toBe(firstBody.sessionQuestionId);
   expect(submission.selectedOptionRefs).toEqual(optionIds);
+  await expect(page.getByText("你已作答。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "送出答案" })).toBeDisabled();
   return {
     idempotencyKey,
     submissionId: stringField(submission, "id", "FE-5.1 same-key replay"),
@@ -804,6 +851,8 @@ async function submitWithResponseLoss(
 }
 
 test.describe("FE-5.1 real-backend Poll multiple", () => {
+  test.setTimeout(180_000);
+
   test("discovers, joins, observes learner states, and enforces access loss on an isolated roster", async ({
     browser,
   }) => {
@@ -837,10 +886,10 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
     let otherStudentLoggedIn = false;
 
     try {
-      adminContext = await browser.newContext({ baseURL: uiOrigin });
-      teacherContext = await browser.newContext({ baseURL: uiOrigin });
-      studentContext = await browser.newContext({ baseURL: uiOrigin });
-      otherStudentContext = await browser.newContext({ baseURL: uiOrigin });
+      adminContext = await newActorContext(browser);
+      teacherContext = await newActorContext(browser);
+      studentContext = await newActorContext(browser);
+      otherStudentContext = await newActorContext(browser);
       adminPage = await adminContext.newPage();
       teacherPage = await teacherContext.newPage();
       studentPage = await studentContext.newPage();
@@ -848,8 +897,28 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
 
       const healthOrigin = new URL(rawApiBase).origin;
       for (const path of ["/health/live", "/health/ready"]) {
-        const health = await adminContext.request.get(`${healthOrigin}${path}`);
-        expect(health.status(), `${path} status`).toBe(200);
+        const directHealth = await adminContext.request.get(
+          `${healthOrigin}${path}`,
+        );
+        expect(directHealth.status(), `direct ${path} status`).toBe(200);
+        const proxiedHealth = await adminContext.request.get(
+          `${uiOrigin}${path}`,
+        );
+        expect(proxiedHealth.status(), `proxied ${path} status`).toBe(200);
+      }
+      const proxiedSession = await adminContext.request.get(
+        `${browserApiBase}/auth/session`,
+      );
+      expect(proxiedSession.status(), "proxied auth/session status").toBe(401);
+      const proxiedSessionBody = await readJson(
+        proxiedSession,
+        "proxied auth/session",
+      );
+      if (
+        !isRecord(proxiedSessionBody) ||
+        !isRecord(proxiedSessionBody.error)
+      ) {
+        throw new Error("proxied auth/session did not return the API envelope");
       }
 
       // Admin provisions the student fixtures.
@@ -908,7 +977,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
         createdAccountIds.push(teacher.id);
         await stepUp(adminContext.request, adminContext, adminPassword);
         const forceChange = await adminContext.request.post(
-          `${apiBase}/admin/accounts/${teacher.id}/require-password-change`,
+          `${fixtureApiBase}/admin/accounts/${teacher.id}/require-password-change`,
           {
             headers: {
               Origin: uiOrigin,
@@ -998,7 +1067,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
 
       // Discovery projection: /me/courses advertises the waiting session.
       const discoveryResponse = await studentContext.request.get(
-        `${apiBase}/me/courses?page=1&pageSize=20`,
+        `${fixtureApiBase}/me/courses?page=1&pageSize=20`,
       );
       expect(discoveryResponse.status(), "discovery status").toBe(200);
       const discoveryBody = await readJson(discoveryResponse, "discovery");
@@ -1044,7 +1113,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
         (request) =>
           request.method() === "POST" &&
           request.url() ===
-            `${apiBase}/live-sessions/${mainSession.sessionCode}/join`,
+            `${browserApiBase}/live-sessions/${mainSession.sessionCode}/join`,
       );
       const joinNavigation = studentPage.waitForURL(
         (url) =>
@@ -1106,7 +1175,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
       await expect(studentPage.getByText("尚未作答。")).toBeVisible();
 
       const snapshotResponse = await studentContext.request.get(
-        `${apiBase}/live-sessions/${mainSession.id}/snapshot`,
+        `${fixtureApiBase}/live-sessions/${mainSession.id}/snapshot`,
       );
       expect(snapshotResponse.status(), "FE-5.1 snapshot status").toBe(200);
       const snapshotBody = await readJson(snapshotResponse, "FE-5.1 snapshot");
@@ -1152,7 +1221,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
       expect(firstSubmission.submissionId).toMatch(uuidPattern);
 
       const permutation = await studentContext.request.post(
-        `${apiBase}/live-sessions/${mainSession.id}/submissions`,
+        `${fixtureApiBase}/live-sessions/${mainSession.id}/submissions`,
         {
           headers: {
             Origin: uiOrigin,
@@ -1277,7 +1346,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
       // teacher visiting the learner route is redirected away by the student
       // layout role gate.
       const teacherJoin = await teacherContext.request.post(
-        `${apiBase}/live-sessions/${mainSession.sessionCode}/join`,
+        `${fixtureApiBase}/live-sessions/${mainSession.sessionCode}/join`,
         {
           headers: {
             Origin: uiOrigin,
@@ -1305,7 +1374,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
       // (The student layout would redirect on /auth/session first, so the
       // disabled UI state is asserted at the API boundary where the code is
       // machine-readable.)
-      adminContext = await browser.newContext({ baseURL: uiOrigin });
+      adminContext = await newActorContext(browser);
       adminPage = await adminContext.newPage();
       await loginViaUi(
         adminPage,
@@ -1325,7 +1394,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
         adminPassword,
       );
       const disabledSnapshot = await studentContext.request.get(
-        `${apiBase}/live-sessions/${mainSession.id}/snapshot`,
+        `${fixtureApiBase}/live-sessions/${mainSession.id}/snapshot`,
       );
       await expectApiError(
         disabledSnapshot,
@@ -1337,7 +1406,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
       // --- Expired/missing session: a fresh context with no cookie visiting
       // the learner route is redirected to login (missing session → UNAUTHORIZED
       // → student layout redirect).
-      const anonymousContext = await browser.newContext({ baseURL: uiOrigin });
+      const anonymousContext = await newActorContext(browser);
       const anonymousPage = await anonymousContext.newPage();
       await anonymousPage.goto(`/student/live/${mainSession.id}`);
       await expect(anonymousPage).toHaveURL(
@@ -1354,7 +1423,7 @@ test.describe("FE-5.1 real-backend Poll multiple", () => {
       // admin for finalization when the admin context was closed mid-flow.
       if (!adminContext) {
         try {
-          adminContext = await browser.newContext({ baseURL: uiOrigin });
+          adminContext = await newActorContext(browser);
           adminPage = await adminContext.newPage();
           await loginViaRequest(adminContext, adminUsername, adminPassword);
           adminLoggedIn = true;

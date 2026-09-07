@@ -20,6 +20,7 @@ const sessionId = "01945f3e-0000-7000-8000-000000000010";
 const questionId = "01945f3e-0000-7000-8000-000000000001";
 const firstId = "01945f3e-0000-7000-8000-000000000002";
 const secondId = "01945f3e-0000-7000-8000-000000000003";
+const thirdId = "01945f3e-0000-7000-8000-000000000004";
 
 function renderWithClient(ui: React.ReactElement) {
   return render(
@@ -110,23 +111,53 @@ describe("PollMultipleQuestion", () => {
     );
   });
 
-  it("retries with the stored attempt and same idempotency key", async () => {
+  it("restores a reordered reload snapshot and retries the stored attempt unchanged", async () => {
     requestStatusMock
       .mockRejectedValueOnce({ code: "NETWORK_ERROR", message: "暫時失敗" })
       .mockResolvedValueOnce({ status: 201, data: canonicalResponse });
+    const initialQuestion = question({
+      options: [
+        { id: firstId, optionRef: "A", text: "數學", position: 0 },
+        { id: secondId, optionRef: "B", text: "英文", position: 1 },
+        { id: thirdId, optionRef: "C", text: "自然", position: 2 },
+      ],
+    });
     const view = renderWithClient(
-      <PollMultipleQuestion question={question()} />,
+      <PollMultipleQuestion question={initialQuestion} />,
     );
-    fireEvent.click(screen.getAllByRole("checkbox")[0]);
+    fireEvent.click(screen.getByDisplayValue(firstId));
+    fireEvent.click(screen.getByDisplayValue(secondId));
     fireEvent.click(screen.getByRole("button", { name: "送出答案" }));
     await waitFor(() => expect(requestStatusMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "無法連線到伺服器，請稍後再試。",
+    );
+    const firstRequest = requestStatusMock.mock.calls[0][1];
+
     view.unmount();
-    renderWithClient(<PollMultipleQuestion question={question()} />);
+    renderWithClient(
+      <PollMultipleQuestion
+        question={question({
+          options: [
+            { id: thirdId, optionRef: "C", text: "自然", position: 0 },
+            { id: secondId, optionRef: "B", text: "英文", position: 1 },
+            { id: firstId, optionRef: "A", text: "數學", position: 2 },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByDisplayValue(firstId)).toBeChecked();
+    expect(screen.getByDisplayValue(secondId)).toBeChecked();
+    expect(screen.getByDisplayValue(thirdId)).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "送出答案" })).toBeEnabled();
+
     fireEvent.click(screen.getByRole("button", { name: "送出答案" }));
     await waitFor(() => expect(requestStatusMock).toHaveBeenCalledTimes(2));
-    expect(requestStatusMock.mock.calls[1][1].idempotencyKey).toBe(
-      requestStatusMock.mock.calls[0][1].idempotencyKey,
+    expect(requestStatusMock.mock.calls[1][1]).toEqual(firstRequest);
+    await waitFor(() =>
+      expect(screen.getByText("你已作答。")).toBeInTheDocument(),
     );
+    expect(screen.getByRole("button", { name: "送出答案" })).toBeDisabled();
   });
 
   it("does not mark success for invalid canonical response or non-201", async () => {

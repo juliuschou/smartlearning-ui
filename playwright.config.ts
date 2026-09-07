@@ -24,6 +24,8 @@ const apiBaseURL =
   process.env.FE13_API_BASE ??
   "http://localhost:3000/api/v1";
 const useHttpsFixture = browserBaseURL.startsWith("https://");
+const backendOrigin = new URL(apiBaseURL).origin;
+const useExternalServer = process.env.FE51_EXTERNAL_SERVER === "1";
 
 export default defineConfig({
   testDir: "./test/browser",
@@ -36,14 +38,16 @@ export default defineConfig({
     headless: true,
     trace: "on-first-retry",
   },
-  webServer: {
-    command: useHttpsFixture
-      ? `NEXT_PUBLIC_API_BASE=${apiBaseURL} npx next dev --experimental-https --experimental-https-key /tmp/fe42-key.pem --experimental-https-cert /tmp/fe42-cert.pem -p 3443`
-      : `NEXT_PUBLIC_API_BASE=${apiBaseURL} npm run dev`,
-    url: browserBaseURL,
-    reuseExistingServer: true,
-    ignoreHTTPSErrors: useHttpsFixture,
-    timeout: 60_000,
-  },
+  webServer: useExternalServer
+    ? undefined
+    : {
+        command: useHttpsFixture
+          ? `NEXT_PUBLIC_API_BASE=/api/v1 FE51_BACKEND_ORIGIN=${backendOrigin} npx next dev --experimental-https --experimental-https-key /tmp/fe42-key.pem --experimental-https-cert /tmp/fe42-cert.pem -p 3443`
+          : `NEXT_PUBLIC_API_BASE=${apiBaseURL} npm run dev`,
+        url: browserBaseURL,
+        reuseExistingServer: !useHttpsFixture,
+        ignoreHTTPSErrors: useHttpsFixture,
+        timeout: 60_000,
+      },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
 });

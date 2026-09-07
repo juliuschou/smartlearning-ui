@@ -139,6 +139,7 @@ function status(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  apiRequestMock.mockReset();
 });
 
 function renderView() {

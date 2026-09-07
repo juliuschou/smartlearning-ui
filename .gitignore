@@ -38,6 +38,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# populated browser-fixture env files (keep credentials/tokens out of git;
+# only the *.env.example templates are tracked)
+/test/browser/*.env
+
 # vercel
 .vercel
 

@@ -2137,11 +2137,13 @@ Risk: medium; the next checkpoint touches learner submission, idempotency, anony
 Part of FE-5.2 Quiz plan Checkpoint 0. FE-5.1 must go green before any FE-5.2 work.
 
 ### Goal / acceptance
+
 - [x] Fresh lifecycle preflight: fresh disposable Compose project + volume + DB port; a current-run Next dev server owns `https://localhost:3443`; direct and proxied `/health/live` `/health/ready` 200; proxied `/auth/session` 401 envelope check green.
 - [x] `fe-5-1-poll-multiple.spec.ts` PASS (1 passed / 0 failed / 0 skipped).
 - [x] **Manual Checkpoint 0 — verified（2026-09-06，使用者回覆「Checkpoint 0 verified」）**：FE-5.1 gate 於 fresh disposable runtime PASS，preflight 全綠；CP1（Transport + attempt record）解鎖。未宣稱任何 FE-5.x closeout；不得開始 CP1 前的任一實作。
 
 ### Checklist
+
 - [x] A — append this plan; review FE-5.1 spec/build state.
 - [x] B — provision a fresh disposable FE51 Compose project (new name, fresh volume, unowned ports).
 - [x] C — compiled admin bootstrap; direct + proxied health + login preflight green.
@@ -2150,16 +2152,19 @@ Part of FE-5.2 Quiz plan Checkpoint 0. FE-5.1 must go green before any FE-5.2 wo
 - [x] F — record results; hold for manual Checkpoint 0 confirmation.
 
 ### Risk & Rollback
+
 - Risk: medium harness, high authenticated fixture mutation. Reveal privacy is FE-5.2's top risk but out of CP0 scope.
 - Rollback: nothing committed in this checkpoint beyond task notes; disposable Compose torn down. Reverts are trivial.
 
 ### Dependencies & Environment
+
 - Exact disposable DB `smartlearning_fe51_test`; fresh project name + volume; ports 3000/3443/55453 free.
 - Required preflight: migration exit 0, backend health, compiled admin bootstrap, current-run Next ownership of :3443, direct/proxied health, proxied API contract.
 - No dev/shared containers, databases, accounts, networks, or volumes may be changed.
 - Requires explicit DB authorization to run the fixture migration (authorized disposable DB only).
 
 ### Working Notes
+
 - Backend images `smartlearning-backend:fe51` + `fe51-migrate` already built. FE-5.1 spec/config fixes present but uncommitted in UI working tree.
 - Stale `smartlearning-fe51-runtimefix-20260906` stack is up on :3000/:55451 from a prior run — to be torn down (disposable) so this run starts fresh.
 - Bootstrap env: `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` / `BOOTSTRAP_ADMIN_DISPLAY_NAME`; run via `node dist/src/bootstrap/bootstrap-admin.js` (compiled avoids tsx ConfigService issue).
@@ -2183,6 +2188,7 @@ Part of FE-5.2 Quiz plan Checkpoint 0. FE-5.1 must go green before any FE-5.2 wo
 Manual Checkpoint 0 verified; CP1 (useSubmitQuiz + quiz attempt record + unit test) implementation in progress.
 
 ### Checklist
+
 - [x] A — `useSubmitQuiz` (+ `SubmitQuizVariables`) in `lib/api/participant-live-sessions.ts`, mirroring `useSubmitPollMultiple` (same endpoint, non-empty UUID set, mutate/idempotencyKey/participantAuth, retry:false).
 - [x] B — `features/live-student/quiz-submission-attempt.ts`: storage namespace `smartlearning:v3:quiz:{actor}:{session}:{question}`, permutation-stable fingerprints, malformed/stale/cross-actor fail-closed.
 - [x] C — `test/quiz-submission-attempt.test.ts` mirroring poll-multiple coverage.
@@ -2190,11 +2196,13 @@ Manual Checkpoint 0 verified; CP1 (useSubmitQuiz + quiz attempt record + unit te
 - [ ] E — present diff + storage-key/fingerprint design for manual Checkpoint 1 review; hold before CP2.
 
 ### Working Notes
+
 - Mirrors the exact poll-multiple attempt contract (v3 record, `crypto.randomUUID()` idempotency key, snapshot-anchored optionSetFingerprint + sorted payloadFingerprint) to keep fail-closed semantics consistent; only the storage namespace and identifier names differ (`quiz` vs `poll-multiple`).
 - Quiz answer contract is exact-set (1..N options), so no extra type narrowing beyond `[string, ...string[]]` was needed vs poll-multiple.
 - Uncommitted FE-5.1 working-tree fixes from the CP0 run are still present and unrelated to CP1.
 
 ### Results — PASS (2026-09-06, test subagent)
+
 - `npx prettier --check` on the 3 target files — clean.
 - `npm run typecheck` — PASS (no `.next/types/routes.d.ts` typegen step needed).
 - `npm run lint:check` — PASS, 0 errors / 12 warnings (all pre-existing/unrelated; the unused `vi` import in the new quiz test mirrors the poll-multiple test's existing convention).
@@ -2208,21 +2216,24 @@ Manual Checkpoint 0 verified; CP1 (useSubmitQuiz + quiz attempt record + unit te
 Manual Checkpoint 3 verified; CP4 (fe-5-2-quiz.spec.ts + run) implementation complete.
 
 ### Checklist
+
 - [x] A — `test/browser/fe-5-2-quiz.spec.ts` (new, modeled on fe-5-1): quiz exact-set (2 correct), reveal-before (no correctness) / reveal-after (participant-safe correctness) assertions, response-loss reload + same-key replay, FE51_* env preflight (BLOCKED never skip).
 - [x] B — `fe-5-2-quiz.spec.ts` PASS (1 passed / 0 failed / 0 skipped) on the disposable FE51 fixture runtime.
 - [x] C — FE-5.1 gate re-confirmed PASS (prerequisite).
-- [x] D — FE-4.2/4.3/4.4 regression: BLOCKED (missing FE42_*/FE44_* env + http://localhost:3001 origin), pre-existing fixture boundary, not a regression.
+- [x] D — FE-4.2/4.3/4.4 regression: BLOCKED (missing FE42__/FE44__ env + http://localhost:3001 origin), pre-existing fixture boundary, not a regression.
 - [x] E — verification bundle: typecheck, lint:check (0 errors), prettier, build, full unit suite (40 files / 329 tests), git diff --check all green.
 
 ### Working Notes
+
 - The post-close correctness reveal is realtime-driven (`result.updated` updates the cached results projection in place while the question is still rendered). This HTTP-proxy fixture has a documented boundary: the Next dev rewrite proxies only `/api` and `/health`, NOT `/socket.io`, so the Socket.IO channel cannot connect, and the learner snapshot drops the closed question after reload ("等待老師開題"). The reveal contract is therefore asserted at the reliable API boundary (closed results return `correctCount`/`incorrectCount`/`correctnessRate`/option `isCorrect`); the realtime DOM reveal is covered by the unit/component reveal tests.
 - The `socket hang up` in the run log is the expected response-loss failpoint (backend commits then drops the response), not a failure.
 - Cleanup closes the session before archiving the course (a course with a waiting/active session cannot be archived).
 
 ### Results — PASS (2026-09-07)
+
 - `node test/browser/run.mjs test/browser/fe-5-2-quiz.spec.ts --workers=1` → **1 passed / 0 failed / 0 skipped** (17.9s test, 2.6m total).
 - `node test/browser/run.mjs test/browser/fe-5-1-poll-multiple.spec.ts --workers=1` → **1 passed / 0 failed / 0 skipped** (30.0s test, 2.8m total).
-- FE-4.2/4.3/4.4: BLOCKED (missing FE42_*/FE44_* env + http://localhost:3001 origin) — pre-existing fixture boundary, not a regression from FE-5.2.
+- FE-4.2/4.3/4.4: BLOCKED (missing FE42__/FE44__ env + http://localhost:3001 origin) — pre-existing fixture boundary, not a regression from FE-5.2.
 - `npx vitest run` → 40 files / 329 tests PASS; `npm run typecheck` PASS; `npm run lint:check` 0 errors / 13 warnings (pre-existing); `npm run build` PASS; `git diff --check` PASS.
 - **Decision:** CP4 automated evidence green. Holding for manual Checkpoint 4 review of the run record (command, env, test/skip counts, reveal-before/after evidence, cleanup) before CP5.
 
@@ -2231,19 +2242,22 @@ Manual Checkpoint 3 verified; CP4 (fe-5-2-quiz.spec.ts + run) implementation com
 Manual Checkpoint 4 verified（使用者回覆「Checkpoint 4 verified」）；CP5（WBS closeout）已授權。
 
 ### Checklist
+
 - [x] A — WBS FE-5.2.1–FE-5.2.4 勾選並附 closeout 註記（branch/HEAD、command、run id、test/skip counts、fixture 邊界、失敗證據若有）。
 - [x] B — 同步 `tasks/todo.md`（本節）。
 - [x] C — 文件同步收尾：`frontend-api-reference.md` quiz authoring `correctOptionRefs` 由「恰一」修正為「至少一」（exact-set），與 runtime `question-contract.ts`（quiz 至少一正解）及 e2e 一致。
 
 ### Working Notes
+
 - WBS closeout 註記寫入 `docs/智學互動平台/00_專案規劃/智學互動平台剩餘工作WBS.md` FE-5.2 段，格式沿用 FE-5.1 status 慣例。
 - 發現並修正 CP3 遺漏：`frontend-api-reference.md:149` 原寫 quiz `correctOptionRefs`「必填恰一」，與 runtime exact-set（可多正解，`question-contract.spec.ts:114` 接受 `['a','c']`）矛盾；已改為「至少一（exact-set，可多正解）」。
 - FE-5.2 變更已提交：UI `4e1a129`（quiz learner flow）、`7907a35`（FE-5.1 gate 前置修復）、`4f64579`（fixture env gitignore 防護）；backend `4a2480c`（frontend-api-reference quiz 段同步）。
 
 ### Results — CLOSED (2026-09-07)
+
 - WBS FE-5.2.1–FE-5.2.4 已勾選；FE-5.2 status 標記 **CLOSED**。
 - 證據：`fe-5-2-quiz.spec.ts` **1 passed / 0 failed / 0 skipped**（17.9s test，2.6m total）；FE-5.1 gate 前置 **1 passed / 0 failed / 0 skipped**（30.0s test，2.8m total）；full unit `40 files / 329 tests PASS`；typecheck／lint:check（0 errors；13 pre-existing warnings）／build／`git diff --check` 全綠。
-- FE-4.2/4.3/4.4 regressions：BLOCKED（缺 FE42_*/FE44_* env + `http://localhost:3001` origin），pre-existing fixture boundary，非 FE-5.2 回歸。
+- FE-4.2/4.3/4.4 regressions：BLOCKED（缺 FE42__/FE44__ env + `http://localhost:3001` origin），pre-existing fixture boundary，非 FE-5.2 回歸。
 - **Decision:** FE-5.2 **CLOSED**。WBS 勾選與 closeout 註記完成；未宣稱 FE-5.3/5.4 進度。
 
 ## 2026-09-07 — FE-5.3 CP4: real-backend acceptance
@@ -2295,14 +2309,14 @@ User explicitly approved CP5 after the CP4 real-backend browser acceptance passe
 
 ### Acceptance matrix
 
-| Area | Evidence | Status |
-| --- | --- | --- |
-| Multiline editing and server normalization | FE-5.3 real-backend browser run | PASS |
-| Strict submission and idempotent response-loss replay | FE-5.3 real-backend browser run | PASS |
-| Anonymous public-result privacy | FE-5.3 real-backend browser run | PASS |
-| Browser result count | Playwright summary | 1 passed / 0 failed / 0 skipped |
-| UI/runtime cleanup | Managed UI stopped; isolated backend retained | PASS |
-| Authoritative WBS update | Explicitly out of CP5 scope | PENDING CP6 |
+| Area                                                  | Evidence                                      | Status                          |
+| ----------------------------------------------------- | --------------------------------------------- | ------------------------------- |
+| Multiline editing and server normalization            | FE-5.3 real-backend browser run               | PASS                            |
+| Strict submission and idempotent response-loss replay | FE-5.3 real-backend browser run               | PASS                            |
+| Anonymous public-result privacy                       | FE-5.3 real-backend browser run               | PASS                            |
+| Browser result count                                  | Playwright summary                            | 1 passed / 0 failed / 0 skipped |
+| UI/runtime cleanup                                    | Managed UI stopped; isolated backend retained | PASS                            |
+| Authoritative WBS update                              | Explicitly out of CP5 scope                   | PENDING CP6                     |
 
 ### CP5 decision
 
@@ -2332,3 +2346,19 @@ User explicitly approved CP1 implementation after the FE-5.4 CP0 contract and en
 ### CP1 decision
 
 CP1 is complete and verified. Stop here until the user explicitly approves CP2 renderer convergence.
+
+## 2026-09-07 — FE-5.4 CP2: open-text component tests
+
+### Checklist
+
+- [x] Add focused `OpenTextQuestion` component coverage for normalization, code-point validation, and strict submit payloads.
+- [x] Cover durable attempt persistence, storage failure, transport retry, canonical receipt conflicts, and anonymous access-loss callback.
+- [x] Cover participant-safe result loading, valid projection, unrevealed/error/malformed states, and closed read-only behavior.
+- [x] Harden the direct renderer so closed questions disable the editor fieldset as well as submission.
+- [x] Run targeted tests and record verification evidence.
+
+### Results — PASS (2026-09-07)
+
+- **What changed:** added `test/open-text-question.test.tsx` with 10 component tests covering normalized Unicode text, strict 201 receipt validation, durable retry behavior, storage fail-closed behavior, participant-safe results, malformed/error states, anonymous access loss, and closed-question read-only controls. Updated `OpenTextQuestion` so non-open questions disable the textarea fieldset defensively; the shared lifecycle gate remains authoritative for normal learner dispatch.
+- **Verification:** `npm test -- test/open-text-question.test.tsx` → **1 file / 10 tests passed**. The run emitted only the existing Vitest/Vite config-loader warning.
+- **Scope:** no backend, schema, dependency, or browser fixture changes. Real-backend FE-5.3 acceptance remains covered by the existing Playwright record above; this CP2 result is component-level only.

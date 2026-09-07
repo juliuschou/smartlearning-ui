@@ -125,7 +125,11 @@ export function OpenTextQuestion({
         id="open-text-conflict"
       />
       <form onSubmit={handleSubmit}>
-        <fieldset disabled={submitted || mutation.isPending}>
+        <fieldset
+          disabled={
+            submitted || mutation.isPending || question.status !== "open"
+          }
+        >
           <legend className="text-sm font-medium">
             {question.snapshotPrompt}
           </legend>

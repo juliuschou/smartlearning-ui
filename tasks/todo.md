@@ -2238,7 +2238,7 @@ Manual Checkpoint 4 verified（使用者回覆「Checkpoint 4 verified」）；C
 ### Working Notes
 - WBS closeout 註記寫入 `docs/智學互動平台/00_專案規劃/智學互動平台剩餘工作WBS.md` FE-5.2 段，格式沿用 FE-5.1 status 慣例。
 - 發現並修正 CP3 遺漏：`frontend-api-reference.md:149` 原寫 quiz `correctOptionRefs`「必填恰一」，與 runtime exact-set（可多正解，`question-contract.spec.ts:114` 接受 `['a','c']`）矛盾；已改為「至少一（exact-set，可多正解）」。
-- FE-5.2 變更仍為 UI working tree 未提交狀態（branch `main`，HEAD `8ec85d3`）；closeout 不包含 commit，提交由使用者另行決定。
+- FE-5.2 變更已提交：UI `4e1a129`（quiz learner flow）、`7907a35`（FE-5.1 gate 前置修復）、`4f64579`（fixture env gitignore 防護）；backend `4a2480c`（frontend-api-reference quiz 段同步）。
 
 ### Results — CLOSED (2026-09-07)
 - WBS FE-5.2.1–FE-5.2.4 已勾選；FE-5.2 status 標記 **CLOSED**。

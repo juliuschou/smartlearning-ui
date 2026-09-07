@@ -35,6 +35,9 @@ const MESSAGES: Record<string, string> = {
   QUESTION_LOCKED_BY_SESSION: "此題已被課堂鎖定，無法修改。",
   RESULTS_NOT_REVEALED: "結果尚未公布，請稍後再試。",
   SUBMISSION_CONFLICT: "作答內容有衝突，請重新整理後再試一次。",
+  FIELD_REQUIRED: "請填寫答案後再送出。",
+  TEXT_TOO_LONG: "答案不可超過 2,000 個字元。",
+  TEXT_UNSAFE: "答案包含不安全的控制字元，請移除後再試。",
   // Live session realtime (FE-3.2)
   REALTIME_UNAVAILABLE: "即時連線暫時無法使用，請稍後再試。",
   CONNECTION_FAILED: "即時連線失敗，請檢查網路後再試。",

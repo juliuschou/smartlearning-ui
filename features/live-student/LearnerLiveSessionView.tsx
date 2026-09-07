@@ -8,6 +8,7 @@ import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { PollSingleQuestion } from "@/features/live-student/PollSingleQuestion";
 import { PollMultipleQuestion } from "@/features/live-student/PollMultipleQuestion";
 import { QuizQuestion } from "@/features/live-student/QuizQuestion";
+import { OpenTextQuestion } from "@/features/live-student/OpenTextQuestion";
 import { ApiRequestError } from "@/lib/api/client";
 import {
   useParticipantSnapshot,
@@ -363,6 +364,8 @@ function QuestionRenderer({
       actor.kind === "anonymous" ? onAccessLoss : undefined,
   };
   if (question.snapshotType === "quiz") return <QuizQuestion {...props} />;
+  if (question.snapshotType === "open_text")
+    return <OpenTextQuestion {...props} />;
   if (question.snapshotType === "poll") {
     if (question.snapshotSelectionMode === "multiple")
       return <PollMultipleQuestion {...props} />;

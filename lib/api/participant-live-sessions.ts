@@ -187,6 +187,14 @@ export interface SubmitQuizVariables {
   actor?: ParticipantActor;
 }
 
+export interface SubmitOpenTextVariables {
+  liveSessionId: string;
+  sessionQuestionId: string;
+  textAnswer: string;
+  idempotencyKey: string;
+  actor?: ParticipantActor;
+}
+
 /** Submit one formal option UUID; retries are caller-controlled. */
 export function useSubmitPollSingle() {
   return useMutation<
@@ -256,6 +264,37 @@ export function useSubmitPollMultiple() {
  * transport reuses the same `POST /live-sessions/:id/submissions` endpoint,
  * idempotency key, and participant auth path. Retries are caller-controlled.
  */
+/** Submit normalized open-text content; retries are caller-controlled. */
+export function useSubmitOpenText() {
+  return useMutation<
+    { data: SubmissionDto; status: number },
+    ApiRequestError,
+    SubmitOpenTextVariables
+  >({
+    mutationFn: ({
+      liveSessionId,
+      sessionQuestionId,
+      textAnswer,
+      idempotencyKey,
+      actor = STUDENT_ACTOR,
+    }) =>
+      apiRequestWithStatus<SubmissionDto>(
+        `/live-sessions/${liveSessionId}/submissions`,
+        {
+          method: "POST",
+          body: {
+            sessionQuestionId,
+            textAnswer,
+          } satisfies CreateSubmissionPayload,
+          mutate: true,
+          idempotencyKey,
+          auth: participantAuth(actor),
+        },
+      ),
+    retry: false,
+  });
+}
+
 export function useSubmitQuiz() {
   return useMutation<
     { data: SubmissionDto; status: number },

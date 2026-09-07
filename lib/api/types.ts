@@ -78,11 +78,22 @@ export type ParticipantActor =
   | { kind: "student" }
   | { kind: "anonymous"; liveSessionId: string; sessionCode: string };
 
-/** `POST /live-sessions/:id/submissions` request body for a poll answer. */
-export interface CreateSubmissionPayload {
+/** `POST /live-sessions/:id/submissions` request body for option answers. */
+export interface OptionSubmissionPayload {
   sessionQuestionId: string;
   selectedOptionRefs: [string, ...string[]];
+  textAnswer?: never;
 }
+
+/** `POST /live-sessions/:id/submissions` request body for open-text answers. */
+export interface OpenTextSubmissionPayload {
+  sessionQuestionId: string;
+  textAnswer: string;
+  selectedOptionRefs?: never;
+}
+
+export type CreateSubmissionPayload =
+  OptionSubmissionPayload | OpenTextSubmissionPayload;
 
 /** Immutable submission response returned by the live-session API. */
 export interface SubmissionDto {

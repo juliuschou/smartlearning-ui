@@ -2245,3 +2245,28 @@ Manual Checkpoint 4 verified（使用者回覆「Checkpoint 4 verified」）；C
 - 證據：`fe-5-2-quiz.spec.ts` **1 passed / 0 failed / 0 skipped**（17.9s test，2.6m total）；FE-5.1 gate 前置 **1 passed / 0 failed / 0 skipped**（30.0s test，2.8m total）；full unit `40 files / 329 tests PASS`；typecheck／lint:check（0 errors；13 pre-existing warnings）／build／`git diff --check` 全綠。
 - FE-4.2/4.3/4.4 regressions：BLOCKED（缺 FE42_*/FE44_* env + `http://localhost:3001` origin），pre-existing fixture boundary，非 FE-5.2 回歸。
 - **Decision:** FE-5.2 **CLOSED**。WBS 勾選與 closeout 註記完成；未宣稱 FE-5.3/5.4 進度。
+
+## 2026-09-07 — FE-5.3 CP4: real-backend acceptance
+
+### Checklist
+
+- [x] CP0 — contract confirmation and clean baseline.
+- [x] CP1 — open-text transport, normalization, and durable attempt record.
+- [x] CP2 — learner renderer, dispatcher, strict results parser, and privacy boundary.
+- [x] CP3 — static/frontend regression verification.
+- [x] CP4 — attempted isolated real-backend Playwright acceptance; blocked by missing authoritative browser spec.
+- [ ] CP5 — evidence closeout.
+- [ ] CP6 — independently authorized WBS update.
+
+### Results — BLOCKED (2026-09-07)
+
+- **Static prerequisite:** CP3 passed independently: typegen, full unit suite (41 files / 334 tests), typecheck, lint (0 errors / 13 pre-existing warnings), build, Prettier, browser discovery (10 tests), and diff check.
+- **Runtime preflight:** disposable backend migration and health probes passed; HTTPS UI returned 200 and same-host browser/API setup was available.
+- **Real-browser acceptance:** **BLOCKED**. The authoritative `test/browser/fe-5-3-open-text.spec.ts` is absent from the checkout, so the required real-browser matrix was not executed (0 passed / 0 failed / 0 skipped). No mocks or replacement spec were used.
+- **Unverified matrix:** multiline normalization and strict 201 receipt; Unicode/unsafe-text boundaries; response-loss reload and same-key replay; anonymous result privacy; open/closed visibility; duplicate preservation and `totalResponses`; literal HTML/Markdown rendering; malformed-result fail-closed behavior; targeted access-loss cleanup; responsive overflow; aggregate cleanup.
+- **Cleanup:** the HTTPS UI process was stopped. Disposable Compose teardown was attempted but Docker became unavailable (`Cannot connect to the Docker daemon at unix:///var/run/docker.sock`), so removal of disposable containers, network, and volume could not be confirmed. No shared/development runtime was intentionally touched.
+- **Scope:** no files were changed by CP4. Existing FE-5.3 changes remain limited to the learner UI, API/types, and focused tests listed in the CP3 record. WBS was not modified.
+
+### Decision
+
+FE-5.3 remains **BLOCKED at CP4**. Do not mark CP4 passed, begin CP5, or update the WBS until the authoritative browser spec exists, Docker disposable resources are verified, and the real acceptance matrix passes with zero skips and confirmed cleanup.

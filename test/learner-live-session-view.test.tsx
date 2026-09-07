@@ -499,7 +499,7 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
     expect(screen.getByRole("button", { name: "送出答案" })).toBeDisabled();
   });
 
-  it("shows a readonly fallback (not a broken submit) for unsupported snapshot types", async () => {
+  it("dispatches open_text to the multiline answer renderer", async () => {
     apiRequestMock.mockResolvedValueOnce(
       snapshot({
         status: "active",
@@ -517,10 +517,10 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
     await waitFor(() =>
       expect(screen.getByText("你最喜歡哪個科目？")).toBeInTheDocument(),
     );
-    expect(screen.getByText("此題型目前無法作答。")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "送出答案" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("textbox", { name: "請輸入你的答案" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "送出答案" })).toBeDisabled();
   });
 
   it("never renders teacher-only data or an answering control", async () => {

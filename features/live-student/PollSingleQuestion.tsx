@@ -46,16 +46,20 @@ export function PollSingleQuestion({
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(
     storedAttempt?.optionId ?? null,
   );
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(
+    storedAttempt ? false : question.hasSubmitted === true,
+  );
   const [responseError, setResponseError] = useState<{ code: string } | null>(
     null,
   );
   const [showResults, setShowResults] = useState(
-    question.hasSubmitted === true,
+    storedAttempt ? false : question.hasSubmitted === true,
   );
   const mutation = useSubmitPollSingle();
   const isSupported = isValidPollSingleQuestion(question);
-  const isSubmitted = question.hasSubmitted === true || submitted;
+  const isSubmitted = storedAttempt
+    ? submitted
+    : question.hasSubmitted === true || submitted;
   const isPending = mutation.isPending;
   const results = useParticipantResults(
     question.liveSessionId,
@@ -119,7 +123,7 @@ export function PollSingleQuestion({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitted || isPending) return;
+    if (question.status !== "open" || isSubmitted || isPending) return;
     if (storedAttempt) {
       submitAttempt(storedAttempt);
       return;
@@ -144,7 +148,9 @@ export function PollSingleQuestion({
     <article className="rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800">
       <ErrorAlert error={mutation.error ?? responseError} id="poll-error" />
       <form onSubmit={handleSubmit}>
-        <fieldset disabled={isSubmitted || isPending}>
+        <fieldset
+          disabled={question.status !== "open" || isSubmitted || isPending}
+        >
           <legend className="text-sm font-medium">
             {question.snapshotPrompt}
           </legend>
@@ -170,7 +176,12 @@ export function PollSingleQuestion({
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            disabled={isSubmitted || isPending || selectedOptionId === null}
+            disabled={
+              question.status !== "open" ||
+              isSubmitted ||
+              isPending ||
+              selectedOptionId === null
+            }
             className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
             送出答案

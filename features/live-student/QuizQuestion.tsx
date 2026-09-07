@@ -69,6 +69,7 @@ export function QuizQuestion({
     storedAttempt ? false : question.hasSubmitted === true,
   );
   const [submissionConflict, setSubmissionConflict] = useState(false);
+  const [storageError, setStorageError] = useState(false);
   const mutation = useSubmitQuiz();
   const results = useParticipantResults(
     question.liveSessionId,
@@ -86,7 +87,12 @@ export function QuizQuestion({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitted || mutation.isPending || selectedOptionIds.length === 0)
+    if (
+      question.status !== "open" ||
+      submitted ||
+      mutation.isPending ||
+      selectedOptionIds.length === 0
+    )
       return;
     const attempt =
       storedAttempt ??
@@ -97,7 +103,11 @@ export function QuizQuestion({
         snapshotOptionIds,
         actor.kind,
       );
-    if (!attempt || !persistQuizSubmissionAttempt(attempt)) return;
+    if (!attempt || !persistQuizSubmissionAttempt(attempt)) {
+      setStorageError(true);
+      return;
+    }
+    setStorageError(false);
     setStoredAttempt(attempt);
     mutation.mutate(
       {
@@ -152,11 +162,19 @@ export function QuizQuestion({
     <article className="rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800">
       <ErrorAlert error={mutation.error} id="quiz-error" />
       <ErrorAlert
+        error={storageError ? { code: "STORAGE_UNAVAILABLE" } : null}
+        id="quiz-storage-error"
+      />
+      <ErrorAlert
         error={submissionConflict ? { code: "SUBMISSION_CONFLICT" } : null}
         id="quiz-conflict"
       />
       <form onSubmit={handleSubmit}>
-        <fieldset disabled={submitted || mutation.isPending}>
+        <fieldset
+          disabled={
+            question.status !== "open" || submitted || mutation.isPending
+          }
+        >
           <legend className="text-sm font-medium">
             {question.snapshotPrompt}
           </legend>
@@ -191,7 +209,10 @@ export function QuizQuestion({
           <button
             type="submit"
             disabled={
-              submitted || mutation.isPending || selectedOptionIds.length === 0
+              question.status !== "open" ||
+              submitted ||
+              mutation.isPending ||
+              selectedOptionIds.length === 0
             }
             className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
           >

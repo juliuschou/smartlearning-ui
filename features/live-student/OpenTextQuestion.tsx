@@ -45,11 +45,12 @@ export function OpenTextQuestion({
     storedAttempt ? false : question.hasSubmitted === true,
   );
   const [submissionConflict, setSubmissionConflict] = useState(false);
+  const [storageError, setStorageError] = useState(false);
   const mutation = useSubmitOpenText();
   const results = useParticipantResults(
     question.liveSessionId,
     question.id,
-    showResults || submitted || question.status === "closed",
+    showResults || submitted,
     actor,
   );
   const normalizedText = normalizeOpenText(rawText);
@@ -57,7 +58,8 @@ export function OpenTextQuestion({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitted || mutation.isPending || !valid) return;
+    if (question.status !== "open" || submitted || mutation.isPending || !valid)
+      return;
     const nextAttempt =
       attempt ??
       createOpenTextSubmissionAttempt(
@@ -66,7 +68,11 @@ export function OpenTextQuestion({
         rawText,
         actor.kind,
       );
-    if (!nextAttempt || !persistOpenTextSubmissionAttempt(nextAttempt)) return;
+    if (!nextAttempt || !persistOpenTextSubmissionAttempt(nextAttempt)) {
+      setStorageError(true);
+      return;
+    }
+    setStorageError(false);
     setAttempt(nextAttempt);
     mutation.mutate(
       {
@@ -111,6 +117,10 @@ export function OpenTextQuestion({
     <article className="rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800">
       <ErrorAlert error={mutation.error} id="open-text-error" />
       <ErrorAlert
+        error={storageError ? { code: "STORAGE_UNAVAILABLE" } : null}
+        id="open-text-storage-error"
+      />
+      <ErrorAlert
         error={submissionConflict ? { code: "SUBMISSION_CONFLICT" } : null}
         id="open-text-conflict"
       />
@@ -150,7 +160,12 @@ export function OpenTextQuestion({
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            disabled={submitted || mutation.isPending || !valid}
+            disabled={
+              question.status !== "open" ||
+              submitted ||
+              mutation.isPending ||
+              !valid
+            }
             className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
           >
             送出答案

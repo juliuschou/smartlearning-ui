@@ -357,6 +357,17 @@ function QuestionRenderer({
   actor: ParticipantActor;
   onAccessLoss: () => void;
 }) {
+  // A question can remain in a cached or retained snapshot after it closes.
+  // Gate lifecycle before type dispatch so no renderer can submit or fetch
+  // results for a question that is no longer open.
+  if (question.status !== "open") {
+    return (
+      <ReadonlyQuestion
+        question={question}
+        message="此題已關閉，目前為唯讀。"
+      />
+    );
+  }
   const props = {
     question,
     actor,
@@ -372,18 +383,29 @@ function QuestionRenderer({
     if (question.snapshotSelectionMode === "single")
       return <PollSingleQuestion {...props} />;
   }
-  // open_text and any unexpected snapshotType have no learner renderer yet —
-  // fall back to the readonly renderer rather than guessing.
-  return <ReadonlyUnsupported {...props} />;
+  // Any unexpected snapshot type falls back to the readonly renderer rather
+  // than guessing which submission contract should handle it.
+  return <ReadonlyUnsupported question={question} />;
 }
 
 function ReadonlyUnsupported({ question }: { question: SessionQuestion }) {
-  return <ReadonlyQuestion question={question} />;
+  return (
+    <ReadonlyQuestion question={question} message="此題型目前無法作答。" />
+  );
 }
 
-function ReadonlyQuestion({ question }: { question: SessionQuestion }) {
+function ReadonlyQuestion({
+  question,
+  message,
+}: {
+  question: SessionQuestion;
+  message: string;
+}) {
   return (
-    <div className="rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800">
+    <article
+      aria-label={question.snapshotPrompt}
+      className="rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800"
+    >
       <p className="text-sm font-medium">{question.snapshotPrompt}</p>
       {question.options.length > 0 ? (
         <ul className="mt-3 space-y-2">
@@ -397,10 +419,8 @@ function ReadonlyQuestion({ question }: { question: SessionQuestion }) {
           ))}
         </ul>
       ) : null}
-      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-        此題型目前無法作答。
-      </p>
-    </div>
+      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{message}</p>
+    </article>
   );
 }
 

@@ -2270,3 +2270,65 @@ Manual Checkpoint 4 verified（使用者回覆「Checkpoint 4 verified」）；C
 ### Decision
 
 FE-5.3 remains **BLOCKED at CP4**. Do not mark CP4 passed, begin CP5, or update the WBS until the authoritative browser spec exists, Docker disposable resources are verified, and the real acceptance matrix passes with zero skips and confirmed cleanup.
+
+## 2026-09-07 — FE-5.3 CP5: evidence closeout
+
+User explicitly approved CP5 after the CP4 real-backend browser acceptance passed.
+
+### Checklist
+
+- [x] A — Record the authoritative browser spec and exact real-backend command.
+- [x] B — Map the FE-5.3.1–FE-5.3.5 acceptance evidence without recording secrets, tokens, identities, or raw answers.
+- [x] C — Record the 1 passed / 0 failed / 0 skipped browser result and expected response-loss behavior.
+- [x] D — Record runtime cleanup and the remaining isolated-runtime disposition.
+- [x] E — Preserve the CP6 boundary; do not modify the authoritative WBS without separate explicit authorization.
+
+### Results — PASS (2026-09-07)
+
+- **Command:** `npm run test:browser -- --workers=1 test/browser/fe-5-3-open-text.spec.ts`.
+- **Result:** real-backend Playwright acceptance **PASS** — 1 passed, 0 failed, 0 skipped, approximately 2.5 minutes.
+- **Acceptance mapping:** multiline text normalization, strict open-text submission flow, response-loss recovery with same-key idempotent replay, and anonymous result privacy passed through the real backend. The transient `socket hang up` was the intentional response-loss simulation and was recovered successfully by the test.
+- **Runtime:** the managed HTTPS Next.js UI process was stopped; ports 3001/3443 were no longer listening. The isolated `smartlearning-fe53` backend/database runtime remained healthy for manual inspection. No shared/development resources were touched.
+- **Privacy:** this record contains no credentials, cookies, CSRF values, participant/account IDs, raw answers, or raw backend error payloads.
+- **Scope:** no product, backend, schema, dependency, environment, or WBS files were changed by CP5. This evidence closeout updates only `smartLearning-ui/tasks/todo.md`.
+- **Decision:** FE-5.3 CP4 real-browser acceptance is closed at the evidence level. CP6 WBS synchronization remains pending separate explicit authorization.
+
+### Acceptance matrix
+
+| Area | Evidence | Status |
+| --- | --- | --- |
+| Multiline editing and server normalization | FE-5.3 real-backend browser run | PASS |
+| Strict submission and idempotent response-loss replay | FE-5.3 real-backend browser run | PASS |
+| Anonymous public-result privacy | FE-5.3 real-backend browser run | PASS |
+| Browser result count | Playwright summary | 1 passed / 0 failed / 0 skipped |
+| UI/runtime cleanup | Managed UI stopped; isolated backend retained | PASS |
+| Authoritative WBS update | Explicitly out of CP5 scope | PENDING CP6 |
+
+### CP5 decision
+
+CP5 evidence closeout is complete. Stop here until the user separately authorizes CP6 to update the authoritative WBS.
+
+## 2026-09-07 — FE-5.4 CP1: shared closed-question lifecycle gate
+
+User explicitly approved CP1 implementation after the FE-5.4 CP0 contract and environment review.
+
+### Checklist
+
+- [x] Add a centralized lifecycle gate before question-type dispatch.
+- [x] Render cached/retained non-open questions as participant-safe read-only content.
+- [x] Preserve existing unsupported-question fallback behavior.
+- [x] Add regression coverage proving closed questions expose no answering controls.
+- [x] Run targeted unit tests, typecheck, lint, and diff checks.
+
+### Results — PASS (2026-09-07)
+
+- **What changed:** `QuestionRenderer` now gates `question.status !== "open"` before dispatching to any poll, quiz, or open-text mutation renderer. Closed and retained terminal questions render a shared read-only projection with an explicit closed message; unsupported snapshot types retain their existing read-only fallback.
+- **Changed files:** `features/live-student/LearnerLiveSessionView.tsx`, `test/learner-live-session-view.test.tsx`, and this task record. No backend, schema, API, realtime protocol, dependency, environment, or WBS files changed for CP1.
+- **Regression coverage:** added a closed-question test asserting the prompt remains visible while radio, checkbox, textarea, and submission controls are absent. Also made the existing terminal receipt test route-aware so its two API responses remain deterministic under React Query lifecycle/rerender timing.
+- **Verification:** `npx vitest run test/learner-live-session-view.test.tsx` → **28 passed / 0 failed**; `npm run typecheck` → **PASS**; `npm run lint:check` → **PASS** (0 errors, 21 pre-existing warnings); targeted Prettier check → **PASS**; `git diff --check` → **PASS**.
+- **Browser status:** no browser mutation was attempted in CP1. FE51 browser fixture variables were not loaded in the shell; real-backend acceptance remains a later FE-5.4 checkpoint.
+- **Privacy/safety:** the gate renders only existing participant-safe snapshot prompt/options, performs no results query or mutation for closed questions, and does not expose identity-bearing data.
+
+### CP1 decision
+
+CP1 is complete and verified. Stop here until the user explicitly approves CP2 renderer convergence.

@@ -199,8 +199,15 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
   });
 
   it("renders the closed terminal state via the student-status receipt", async () => {
-    apiRequestMock.mockRejectedValueOnce(terminalError());
-    apiRequestMock.mockResolvedValueOnce(status({ status: "closed" }));
+    apiRequestMock.mockImplementation((path: string) => {
+      if (path.endsWith("/snapshot")) {
+        return Promise.reject(terminalError());
+      }
+      if (path.endsWith("/student-status")) {
+        return Promise.resolve(status({ status: "closed" }));
+      }
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
     renderView();
     await waitFor(() => {
       expect(screen.getByText("已結束")).toBeInTheDocument();
@@ -522,6 +529,27 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
       screen.getByRole("textbox", { name: "請輸入你的答案" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "送出答案" })).toBeDisabled();
+  });
+
+  it("renders a closed question as read-only before renderer dispatch", async () => {
+    apiRequestMock.mockResolvedValueOnce(
+      snapshot({
+        status: "active",
+        sessionQuestions: [{ ...openQuestion(), status: "closed" }],
+      }),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("此題已關閉，目前為唯讀。")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("article", { name: "你最喜歡哪個科目？" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "送出答案" }),
+    ).not.toBeInTheDocument();
   });
 
   it("never renders teacher-only data or an answering control", async () => {

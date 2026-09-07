@@ -7,6 +7,7 @@ import { queryKeys } from "@/lib/api/query-keys";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { PollSingleQuestion } from "@/features/live-student/PollSingleQuestion";
 import { PollMultipleQuestion } from "@/features/live-student/PollMultipleQuestion";
+import { QuizQuestion } from "@/features/live-student/QuizQuestion";
 import { ApiRequestError } from "@/lib/api/client";
 import {
   useParticipantSnapshot,
@@ -361,10 +362,42 @@ function QuestionRenderer({
     onParticipantAccessLoss:
       actor.kind === "anonymous" ? onAccessLoss : undefined,
   };
-  return question.snapshotSelectionMode === "multiple" ? (
-    <PollMultipleQuestion {...props} />
-  ) : (
-    <PollSingleQuestion {...props} />
+  if (question.snapshotType === "quiz") return <QuizQuestion {...props} />;
+  if (question.snapshotType === "poll") {
+    if (question.snapshotSelectionMode === "multiple")
+      return <PollMultipleQuestion {...props} />;
+    if (question.snapshotSelectionMode === "single")
+      return <PollSingleQuestion {...props} />;
+  }
+  // open_text and any unexpected snapshotType have no learner renderer yet —
+  // fall back to the readonly renderer rather than guessing.
+  return <ReadonlyUnsupported {...props} />;
+}
+
+function ReadonlyUnsupported({ question }: { question: SessionQuestion }) {
+  return <ReadonlyQuestion question={question} />;
+}
+
+function ReadonlyQuestion({ question }: { question: SessionQuestion }) {
+  return (
+    <div className="rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <p className="text-sm font-medium">{question.snapshotPrompt}</p>
+      {question.options.length > 0 ? (
+        <ul className="mt-3 space-y-2">
+          {question.options.map((option) => (
+            <li
+              key={option.id}
+              className="rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800"
+            >
+              {option.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+        此題型目前無法作答。
+      </p>
+    </div>
   );
 }
 

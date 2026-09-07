@@ -179,6 +179,14 @@ export interface SubmitPollMultipleVariables {
   actor?: ParticipantActor;
 }
 
+export interface SubmitQuizVariables {
+  liveSessionId: string;
+  sessionQuestionId: string;
+  selectedOptionIds: [string, ...string[]];
+  idempotencyKey: string;
+  actor?: ParticipantActor;
+}
+
 /** Submit one formal option UUID; retries are caller-controlled. */
 export function useSubmitPollSingle() {
   return useMutation<
@@ -231,6 +239,43 @@ export function useSubmitPollMultiple() {
           body: {
             sessionQuestionId,
             selectedOptionRefs: optionIds,
+          } satisfies CreateSubmissionPayload,
+          mutate: true,
+          idempotencyKey,
+          auth: participantAuth(actor),
+        },
+      ),
+    retry: false,
+  });
+}
+
+/**
+ * FE-5.2 — submit a quiz answer as a non-empty exact set of formal option
+ * UUIDs. The quiz answer contract is exact-set semantics mirroring
+ * poll-multiple (order-insensitive fingerprint on the backend), so the
+ * transport reuses the same `POST /live-sessions/:id/submissions` endpoint,
+ * idempotency key, and participant auth path. Retries are caller-controlled.
+ */
+export function useSubmitQuiz() {
+  return useMutation<
+    { data: SubmissionDto; status: number },
+    ApiRequestError,
+    SubmitQuizVariables
+  >({
+    mutationFn: ({
+      liveSessionId,
+      sessionQuestionId,
+      selectedOptionIds,
+      idempotencyKey,
+      actor = STUDENT_ACTOR,
+    }) =>
+      apiRequestWithStatus<SubmissionDto>(
+        `/live-sessions/${liveSessionId}/submissions`,
+        {
+          method: "POST",
+          body: {
+            sessionQuestionId,
+            selectedOptionRefs: selectedOptionIds,
           } satisfies CreateSubmissionPayload,
           mutate: true,
           idempotencyKey,

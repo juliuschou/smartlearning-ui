@@ -88,6 +88,36 @@ function openQuestion() {
   };
 }
 
+function quizQuestion() {
+  return {
+    id: "sq-2",
+    liveSessionId: "session-1",
+    questionDefinitionId: "question-2",
+    position: 0,
+    status: "open" as const,
+    snapshotType: "quiz" as const,
+    snapshotPrompt: "哪兩個是首都？",
+    snapshotSelectionMode: null,
+    openedAt: "2026-09-03T09:01:00.000Z",
+    closedAt: null,
+    hasSubmitted: false,
+    options: [
+      {
+        id: "01945f3e-0000-7000-8000-000000000002",
+        optionRef: "A",
+        text: "台北",
+        position: 0,
+      },
+      {
+        id: "01945f3e-0000-7000-8000-000000000003",
+        optionRef: "B",
+        text: "倫敦",
+        position: 1,
+      },
+    ],
+  };
+}
+
 function terminalError() {
   return new ApiRequestError(
     { code: "SESSION_NOT_JOINABLE", message: "internal", blocking: true },
@@ -451,6 +481,46 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
         screen.getByText("你的課程加選已被移除，無法進入課堂。"),
       ).toBeInTheDocument(),
     );
+  });
+
+  it("dispatches a quiz question to the quiz renderer, not the single-choice renderer", async () => {
+    apiRequestMock.mockResolvedValueOnce(
+      snapshot({ status: "active", sessionQuestions: [quizQuestion()] }),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("哪兩個是首都？")).toBeInTheDocument(),
+    );
+    // Quiz is multi-select exact-set: rendered as checkboxes, never a single
+    // radio-choice renderer (quiz snapshotSelectionMode is null).
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    expect(screen.getByText("可複選")).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "送出答案" })).toBeDisabled();
+  });
+
+  it("shows a readonly fallback (not a broken submit) for unsupported snapshot types", async () => {
+    apiRequestMock.mockResolvedValueOnce(
+      snapshot({
+        status: "active",
+        sessionQuestions: [
+          {
+            ...openQuestion(),
+            snapshotType: "open_text",
+            snapshotSelectionMode: null,
+            options: [],
+          },
+        ],
+      }),
+    );
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("你最喜歡哪個科目？")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("此題型目前無法作答。")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "送出答案" }),
+    ).not.toBeInTheDocument();
   });
 
   it("never renders teacher-only data or an answering control", async () => {

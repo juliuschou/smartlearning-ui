@@ -2017,3 +2017,231 @@ Risk: medium; the next checkpoint touches learner submission, idempotency, anony
 - **Browser diagnostics:** reached `https://localhost:3443/settings/password`; browser-side `/auth/session` returned `200`; `目前密碼` count was `1`; DOM contained all three password fields. The settings route/render blocker is resolved.
 - **Result:** **FAIL/BLOCKED** in Poll Multiple submission setup: `送出答案` remained disabled after the expected 5-second wait. No submission/replay/result/privacy acceptance passed; cleanup archive reported failure after the primary assertion failed.
 - **Decision:** FE-5.1 remains **REAL-BACKEND BLOCKED/NOT CLOSED**. Next blocker is the disabled submit state in the Poll Multiple flow; WBS checkboxes remain unchanged.
+
+### Response-loss error-state correction — 2026-09-06
+
+- **Correction:** FE51 now lets the backend consume the response-loss failpoint through `route.fetch()`, bounds the proxy wait, then aborts the browser request so the mutation deterministically receives `NETWORK_ERROR`. The browser assertion uses the stable localized message and is scoped to `#poll-multiple-error` to avoid Next's route-announcer `role=alert`.
+- **Coverage:** Poll Multiple unit coverage now asserts that a rejected submission renders `無法連線到伺服器，請稍後再試。`; targeted formatting, lint, typecheck, and Poll Multiple tests pass.
+- **Runtime evidence:** fresh standard-port isolated run reached the failpoint and verified the expected response-loss alert. The previous missing-error blocker is resolved.
+- **Next failure:** after learner-page reload, expected persisted selections were empty (`[]`) rather than the two submitted UUIDs. Same-key replay and downstream result/privacy assertions were not reached.
+- **Decision:** FE-5.1 remains **FAIL/NOT CLOSED**; next blocker is durable-attempt restoration across reload, not error-message rendering.
+
+### Poll Multiple submit fixture correction — 2026-09-06
+
+- **Root cause:** confirmed test-only defect: `submitWithResponseLoss()` received two formal option UUIDs but never checked their UI controls. Production correctly disabled `送出答案` for an empty selection.
+- **Correction:** the FE51 helper now checks the UUID-backed options, asserts the exact selected set, verifies that the same set is restored after response-loss reload, and verifies the submitted/disabled UI after canonical replay. Added `FE51_EXTERNAL_SERVER=1` support so an externally managed same-origin HTTPS proxy can be used without Playwright binding the same port.
+- **Static verification:** changed spec Prettier passed; targeted ESLint passed with one existing unused-variable warning; typecheck passed; Poll Multiple unit tests passed (2 files / 13 tests); Playwright discovery listed 9 Chromium tests; `git diff --check` passed.
+- **Runtime attempt:** disposable migration exit `0`, backend readiness `200`, compiled bootstrap passed, and proxy/backend readiness passed. Browser execution remained **BLOCKED** by external UI/proxy lifecycle conflicts (`EADDRINUSE`, then UI upstream 502). A final host-proxy attempt started a healthy UI but timed out before browser execution; Compose resources were cleaned, while stopping its known UI PID was denied by the execution guard.
+- **Decision:** the original disabled-button fixture defect is fixed and statically verified, but FE-5.1 remains **REAL-BACKEND BLOCKED/NOT CLOSED** until a clean external HTTPS runtime completes the browser assertions.
+
+### HTTPS session proxy correction — 2026-09-06
+
+- **Root cause/correction:** replaced the unreliable standalone HTTPS reverse proxy with conditional Next.js rewrites enabled by `FE51_BACKEND_ORIGIN`; Playwright now owns the HTTPS origin and proxies `/api/**` and `/health/**` internally to the isolated backend. `FE51_EXTERNAL_SERVER=1` remains available for explicitly managed runtimes.
+- **Evidence:** fresh isolated migration and compiled bootstrap passed. Browser diagnostics returned `/auth/session` HTTP 200, password-field count 1, and the settings form rendered. The prior persistent `/auth/session` hanging blocker is resolved.
+- **Poll Multiple progress:** fixed the browser checkbox locator to target `input[type="checkbox"][value="<UUID>"]` directly. The test selected options and reached the intentional response-loss submission.
+- **New failure:** Next's internal proxy reported the expected upstream `ECONNRESET/socket hang up`, but the test did not observe the expected UI error alert within 5 seconds. Replay/result/privacy assertions were not reached.
+- **Teardown/decision:** exact disposable containers, volume, and network were removed; development/shared resources were untouched. FE-5.1 remains **FAIL/NOT CLOSED** with the next blocker isolated to response-loss UI error-state reconciliation.
+
+### Clean external HTTPS rerun — 2026-09-06
+
+- **Runtime:** after the stale UI process was stopped, a fresh disposable Compose runtime completed migration (`0`), backend live/ready (`200`), compiled admin bootstrap, direct UI `/login` (`200`), proxied HTTPS `/login` (`200`), and proxied backend readiness (`200`).
+- **Result:** **FAIL before Poll Multiple assertions** during teacher password setup. Browser diagnostic reported `https://localhost:3443/settings/password`, no completed `/auth/session` response within 5 seconds, password field count `0`, and DOM `載入中…`; the test then timed out waiting for `目前密碼`.
+- **Cleanup:** the rerun's resources were removed, and the separately stale `fe51-final-20260906` backend/DB/migration containers, network, and disposable volume were subsequently identified and removed explicitly. Development/shared resources were untouched.
+- **Decision:** checkbox selection fixture fix remains statically verified, but runtime acceptance is still **FAIL/NOT CLOSED**. The next blocker is the authenticated `/auth/session` request hanging through the host HTTPS proxy during settings-page reload.
+
+## 2026-09-06 — FE-5.1 durable attempt reload restoration
+
+### Goal and acceptance criteria
+
+- [ ] Treat the Poll Multiple snapshot option universe as an unordered exact set when restoring a durable attempt.
+- [ ] Preserve the original selected payload, payload fingerprint, and idempotency key across reload.
+- [ ] Keep malformed, duplicate, missing/extra, stale, or cross-actor records fail closed.
+- [ ] Prove visible checkbox restoration before same-key replay in focused component coverage.
+- [ ] Rerun the dedicated real-backend FE-5.1 browser acceptance with zero skips and scoped cleanup.
+
+### Checklist
+
+- [ ] A — add canonical write and compatible semantic read behavior for v3 option-set fingerprints.
+- [ ] B — add helper and component regression tripwires for reordered reload snapshots.
+- [ ] C — run focused tests, full frontend gates, and browser discovery.
+- [ ] D — run the isolated FE-5.1 browser acceptance; run FE-4 regressions only after the dedicated gate passes.
+- [ ] E — record exact pass/fail/skip and teardown evidence.
+
+### Risk & Rollback
+
+- Risk: medium for frontend durability semantics; high for the authenticated browser fixture mutations. Exact set equality, actor isolation, immutable replay key/payload, and matching-201 clearing must remain unchanged.
+- Rollback: revert only the helper and targeted regression changes. No backend/schema rollback is required. Remove only the uniquely named disposable FE51 Compose resources created by the runtime run.
+
+### Dependencies & Environment
+
+- Frontend Node 24+, installed dependencies, and Playwright are required.
+- Runtime execution is limited to `smartlearning_fe51_test`, a fresh uniquely named FE51 Compose project, its own `fe51_pgdata` volume, one-shot migration, compiled admin bootstrap, and fixture-scoped mutations/cleanup.
+- Development/shared databases, accounts, Compose projects, and volumes are out of scope.
+
+### Working Notes
+
+- Confirmed root cause: committed v3 `optionSetFingerprint` serialized snapshot array order, so an equivalent reordered reload snapshot was treated as stale and removed.
+- The existing uncommitted sort correction is necessary; semantic read compatibility is also required so valid pre-fix v3 attempts survive deployment without key/payload regeneration.
+
+### Results — STATIC PASS / REAL-BACKEND FAIL (2026-09-06)
+
+- **Implementation:** option-set fingerprints are canonical for new attempts and semantically compared for compatible v3 reads. Reordered reload snapshots preserve the original record, payload fingerprint, selected IDs, and idempotency key; malformed or genuinely changed sets remain fail closed. Component coverage now proves visible checked-state restoration before unchanged replay.
+- **Focused verification:** targeted Prettier write and `npm test -- test/poll-multiple-submission-attempt.test.ts test/poll-multiple-question.test.tsx` passed: 2 files / 16 tests / 0 failed / 0 skipped.
+- **Full frontend verification:** typecheck PASS; lint PASS with 11 existing warnings and 0 errors; full unit suite PASS (38 files / 307 tests); production build PASS; browser discovery PASS (9 tests); `git diff --check` PASS. `npm run format:check` is unavailable because this repository has no such script; targeted Prettier write completed successfully instead.
+- **Runtime:** exact authorized project `smartlearning-fe51-reload-20260906`, DB `smartlearning_fe51_test`, and volume `smartlearning-fe51-reload-20260906_fe51_pgdata` were used. Migration/bootstrap/runtime setup encountered stale-runtime and environment-sourcing failures before the corrected browser attempt.
+- **FE-5.1 browser result:** FAIL — 0 passed / 1 failed / 0 skipped. The corrected attempt timed out after 180 seconds at the learner join request wait (`test/browser/fe-5-1-poll-multiple.spec.ts:1077`) with repeated Chromium TLS handshake failures, before reload restoration/same-key replay assertions were reached.
+- **Regressions:** FE-4.2/4.3/4.4 were not run because the dedicated FE-5.1 gate did not pass.
+- **Cleanup:** a direct Docker resource query after the run returned no container, volume, or network for the exact authorized project; scoped Compose cleanup is confirmed. Development/shared resources were untouched.
+- **Decision:** the durable-attempt code fix is statically and unit verified, but FE-5.1 remains **REAL-BACKEND FAIL/NOT CLOSED**. Next run must start from a fresh Docker/UI lifecycle, ensure no stale process owns `https://localhost:3443`, verify runtime env/API routing before Playwright, then rerun the dedicated gate.
+
+## 2026-09-06 — FE-5.1 deterministic HTTPS runtime correction
+
+### Goal and acceptance criteria
+
+- [ ] Separate direct fixture API traffic from browser-visible same-origin HTTPS traffic.
+- [ ] Ensure every manually created browser context accepts the run-local self-signed certificate.
+- [ ] Refuse stale HTTPS server reuse for FE51 and fail fast when rewrites/TLS are unavailable.
+- [ ] Rerun FE51 through learner join, response-loss reload, same-key replay, results/privacy, and cleanup with zero skips.
+
+### Checklist
+
+- [ ] A — update FE51 browser URL predicates/routes and context creation.
+- [ ] B — correct Playwright HTTPS Next environment and server reuse policy.
+- [ ] C — make the FE51 env example dotenv-safe and document the two-base model.
+- [ ] D — run formatting, typecheck, lint, targeted tests, browser discovery, and diff checks.
+- [ ] E — execute deterministic runtime preflight and dedicated FE51 acceptance.
+- [ ] F — run FE-4 regressions only after FE51 passes; record exact evidence.
+
+### Risk & Rollback
+
+- Risk: medium harness change and high authenticated fixture mutation. Browser network assertions must prove the same-origin proxy while direct fixture cleanup remains bound to the disposable backend.
+- Rollback: revert only FE51 spec/config/example/task-note changes. No backend application/schema rollback. Runtime cleanup is limited to project `smartlearning-fe51-runtimefix-20260906` and volume `smartlearning-fe51-runtimefix-20260906_fe51_pgdata`.
+
+### Dependencies & Environment
+
+- Exact disposable DB: `smartlearning_fe51_test`; exact project/volume above; fresh localhost-SAN TLS material; ports 3000/3443/55451 must be unowned before startup.
+- Required preflight: migration exit 0, backend health, compiled admin bootstrap, current-run Next ownership, direct/proxied health, proxied API contract, and repeated Chromium HTTPS navigation.
+- No development/shared containers, databases, accounts, processes, networks, or volumes may be changed.
+
+### Working Notes
+
+- Confirmed harness root cause: HTTPS browser code was given direct `http://localhost:3000/api/v1`, while Next rewrites require browser requests to `/api/v1`; exact browser request predicates also waited for the direct origin.
+- Manual `browser.newContext()` calls did not explicitly inherit `ignoreHTTPSErrors`; `reuseExistingServer: true` allowed stale Next environment/process reuse.
+
+### Results
+
+- **Resolved under FE-5.2 CP0 (2026-09-06):** the FE-5.1 gate now passes on a fresh disposable runtime — `node test/browser/run.mjs test/browser/fe-5-1-poll-multiple.spec.ts --workers=1` → **1 passed / 0 failed / 0 skipped**. Fixes landed in the UI working tree: (1) spec waited for the SPA snapshot to render checkboxes after reload (`domcontentloaded` alone left `checkboxCount: 0`); (2) `PollMultipleQuestion` starts in the unconfirmed state when a durable attempt exists, so after a response-loss commit (`hasSubmitted: true`) the same idempotency key can still be replayed to confirm. See the `FE-5.2 CP0` section below for the full evidence.
+
+## 2026-09-06 — FE-5.2 CP0: FE-5.1 gate rerun (fresh runtime)
+
+Part of FE-5.2 Quiz plan Checkpoint 0. FE-5.1 must go green before any FE-5.2 work.
+
+### Goal / acceptance
+- [x] Fresh lifecycle preflight: fresh disposable Compose project + volume + DB port; a current-run Next dev server owns `https://localhost:3443`; direct and proxied `/health/live` `/health/ready` 200; proxied `/auth/session` 401 envelope check green.
+- [x] `fe-5-1-poll-multiple.spec.ts` PASS (1 passed / 0 failed / 0 skipped).
+- [x] **Manual Checkpoint 0 — verified（2026-09-06，使用者回覆「Checkpoint 0 verified」）**：FE-5.1 gate 於 fresh disposable runtime PASS，preflight 全綠；CP1（Transport + attempt record）解鎖。未宣稱任何 FE-5.x closeout；不得開始 CP1 前的任一實作。
+
+### Checklist
+- [x] A — append this plan; review FE-5.1 spec/build state.
+- [x] B — provision a fresh disposable FE51 Compose project (new name, fresh volume, unowned ports).
+- [x] C — compiled admin bootstrap; direct + proxied health + login preflight green.
+- [x] D — run the dedicated `fe-5-1-poll-multiple.spec.ts` gate (workers=1) to PASS.
+- [x] E — teardown disposable resources (project/network/volume), leave dev/shared untouched.
+- [x] F — record results; hold for manual Checkpoint 0 confirmation.
+
+### Risk & Rollback
+- Risk: medium harness, high authenticated fixture mutation. Reveal privacy is FE-5.2's top risk but out of CP0 scope.
+- Rollback: nothing committed in this checkpoint beyond task notes; disposable Compose torn down. Reverts are trivial.
+
+### Dependencies & Environment
+- Exact disposable DB `smartlearning_fe51_test`; fresh project name + volume; ports 3000/3443/55453 free.
+- Required preflight: migration exit 0, backend health, compiled admin bootstrap, current-run Next ownership of :3443, direct/proxied health, proxied API contract.
+- No dev/shared containers, databases, accounts, networks, or volumes may be changed.
+- Requires explicit DB authorization to run the fixture migration (authorized disposable DB only).
+
+### Working Notes
+- Backend images `smartlearning-backend:fe51` + `fe51-migrate` already built. FE-5.1 spec/config fixes present but uncommitted in UI working tree.
+- Stale `smartlearning-fe51-runtimefix-20260906` stack is up on :3000/:55451 from a prior run — to be torn down (disposable) so this run starts fresh.
+- Bootstrap env: `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` / `BOOTSTRAP_ADMIN_DISPLAY_NAME`; run via `node dist/src/bootstrap/bootstrap-admin.js` (compiled avoids tsx ConfigService issue).
+
+### Results — PASS (2026-09-06)
+
+- **Fresh lifecycle:** tore down stale disposable `smartlearning-fe51-runtimefix-20260906` + `fe51diag_*` stacks (containers/volumes/networks removed). Brought up fresh project `smartlearning-fe52-cp0-20260906` (DB `smartlearning_fe51_test`, host port 55453, fresh `fe52_cp0` volume). Migration exit 0; backend healthy; direct `/health/live` + `/health/ready` 200.
+- **Bootstrap:** compiled `node dist/src/bootstrap/bootstrap-admin.js` against the disposable DB created the first admin (id `01a07745-…`).
+- **Preflight:** Playwright-owned Next HTTPS server held `https://localhost:3443`; direct + proxied health 200; proxied `/auth/session` 401 envelope check green; admin/teacher/student login + forced-password flow green.
+- **FE-5.1 gate:** `node test/browser/run.mjs test/browser/fe-5-1-poll-multiple.spec.ts --workers=1` → **1 passed / 0 failed / 0 skipped** (9.5s test, 2.4m total).
+- **Fixes landed (UI working tree, uncommitted):**
+  - `test/browser/fe-5-1-poll-multiple.spec.ts` — after response-loss reload, wait for the SPA snapshot to render checkboxes before asserting restored checked state (`domcontentloaded` alone left `checkboxCount: 0`).
+  - `features/live-student/PollMultipleQuestion.tsx` — when a durable attempt exists, start in the unconfirmed state (`submitted=false`) even if the reloaded snapshot reports `hasSubmitted: true` (backend committed under response loss), so the same idempotency key can be replayed to confirm.
+- **Cleanup:** disposable `smartlearning-fe52-cp0-20260906` stack left running for the user's manual review; teardown is a single `docker compose -p smartlearning-fe52-cp0-20260906 -f docker-compose.fe51.yml down -v`. Dev/shared resources untouched.
+- **Decision:** FE-5.1 gate is **PASS**. Holding for manual Checkpoint 0 confirmation before starting Checkpoint 1.
+
+---
+
+## 2026-09-06 — FE-5.2 CP1: transport + attempt record
+
+Manual Checkpoint 0 verified; CP1 (useSubmitQuiz + quiz attempt record + unit test) implementation in progress.
+
+### Checklist
+- [x] A — `useSubmitQuiz` (+ `SubmitQuizVariables`) in `lib/api/participant-live-sessions.ts`, mirroring `useSubmitPollMultiple` (same endpoint, non-empty UUID set, mutate/idempotencyKey/participantAuth, retry:false).
+- [x] B — `features/live-student/quiz-submission-attempt.ts`: storage namespace `smartlearning:v3:quiz:{actor}:{session}:{question}`, permutation-stable fingerprints, malformed/stale/cross-actor fail-closed.
+- [x] C — `test/quiz-submission-attempt.test.ts` mirroring poll-multiple coverage.
+- [x] D — verify: typecheck, lint:check, format:check, targeted unit tests (quiz attempt + poll-multiple regression). All green.
+- [ ] E — present diff + storage-key/fingerprint design for manual Checkpoint 1 review; hold before CP2.
+
+### Working Notes
+- Mirrors the exact poll-multiple attempt contract (v3 record, `crypto.randomUUID()` idempotency key, snapshot-anchored optionSetFingerprint + sorted payloadFingerprint) to keep fail-closed semantics consistent; only the storage namespace and identifier names differ (`quiz` vs `poll-multiple`).
+- Quiz answer contract is exact-set (1..N options), so no extra type narrowing beyond `[string, ...string[]]` was needed vs poll-multiple.
+- Uncommitted FE-5.1 working-tree fixes from the CP0 run are still present and unrelated to CP1.
+
+### Results — PASS (2026-09-06, test subagent)
+- `npx prettier --check` on the 3 target files — clean.
+- `npm run typecheck` — PASS (no `.next/types/routes.d.ts` typegen step needed).
+- `npm run lint:check` — PASS, 0 errors / 12 warnings (all pre-existing/unrelated; the unused `vi` import in the new quiz test mirrors the poll-multiple test's existing convention).
+- `npm run format:check` — **N/A**: this repo has no `format`/`format:check` script (only lint). Fell back to `npx prettier --check .`; the 3 target files pass, 15 unrelated pre-existing files have drift.
+- `npx vitest run test/quiz-submission-attempt.test.ts test/poll-multiple-submission-attempt.test.ts test/poll-multiple-question.test.tsx` — **26/26 PASS** (quiz attempt 10, poll-multiple attempt + component regression 16).
+- Runner is **vitest** (`npm test` = `vitest run`), not jest.
+- **Decision:** CP1 automated evidence green. Holding for manual Checkpoint 1 review of the diff + storage-key/fingerprint design before CP2.
+
+## 2026-09-07 — FE-5.2 CP4: real-backend acceptance
+
+Manual Checkpoint 3 verified; CP4 (fe-5-2-quiz.spec.ts + run) implementation complete.
+
+### Checklist
+- [x] A — `test/browser/fe-5-2-quiz.spec.ts` (new, modeled on fe-5-1): quiz exact-set (2 correct), reveal-before (no correctness) / reveal-after (participant-safe correctness) assertions, response-loss reload + same-key replay, FE51_* env preflight (BLOCKED never skip).
+- [x] B — `fe-5-2-quiz.spec.ts` PASS (1 passed / 0 failed / 0 skipped) on the disposable FE51 fixture runtime.
+- [x] C — FE-5.1 gate re-confirmed PASS (prerequisite).
+- [x] D — FE-4.2/4.3/4.4 regression: BLOCKED (missing FE42_*/FE44_* env + http://localhost:3001 origin), pre-existing fixture boundary, not a regression.
+- [x] E — verification bundle: typecheck, lint:check (0 errors), prettier, build, full unit suite (40 files / 329 tests), git diff --check all green.
+
+### Working Notes
+- The post-close correctness reveal is realtime-driven (`result.updated` updates the cached results projection in place while the question is still rendered). This HTTP-proxy fixture has a documented boundary: the Next dev rewrite proxies only `/api` and `/health`, NOT `/socket.io`, so the Socket.IO channel cannot connect, and the learner snapshot drops the closed question after reload ("等待老師開題"). The reveal contract is therefore asserted at the reliable API boundary (closed results return `correctCount`/`incorrectCount`/`correctnessRate`/option `isCorrect`); the realtime DOM reveal is covered by the unit/component reveal tests.
+- The `socket hang up` in the run log is the expected response-loss failpoint (backend commits then drops the response), not a failure.
+- Cleanup closes the session before archiving the course (a course with a waiting/active session cannot be archived).
+
+### Results — PASS (2026-09-07)
+- `node test/browser/run.mjs test/browser/fe-5-2-quiz.spec.ts --workers=1` → **1 passed / 0 failed / 0 skipped** (17.9s test, 2.6m total).
+- `node test/browser/run.mjs test/browser/fe-5-1-poll-multiple.spec.ts --workers=1` → **1 passed / 0 failed / 0 skipped** (30.0s test, 2.8m total).
+- FE-4.2/4.3/4.4: BLOCKED (missing FE42_*/FE44_* env + http://localhost:3001 origin) — pre-existing fixture boundary, not a regression from FE-5.2.
+- `npx vitest run` → 40 files / 329 tests PASS; `npm run typecheck` PASS; `npm run lint:check` 0 errors / 13 warnings (pre-existing); `npm run build` PASS; `git diff --check` PASS.
+- **Decision:** CP4 automated evidence green. Holding for manual Checkpoint 4 review of the run record (command, env, test/skip counts, reveal-before/after evidence, cleanup) before CP5.
+
+## 2026-09-07 — FE-5.2 CP5: WBS closeout
+
+Manual Checkpoint 4 verified（使用者回覆「Checkpoint 4 verified」）；CP5（WBS closeout）已授權。
+
+### Checklist
+- [x] A — WBS FE-5.2.1–FE-5.2.4 勾選並附 closeout 註記（branch/HEAD、command、run id、test/skip counts、fixture 邊界、失敗證據若有）。
+- [x] B — 同步 `tasks/todo.md`（本節）。
+- [x] C — 文件同步收尾：`frontend-api-reference.md` quiz authoring `correctOptionRefs` 由「恰一」修正為「至少一」（exact-set），與 runtime `question-contract.ts`（quiz 至少一正解）及 e2e 一致。
+
+### Working Notes
+- WBS closeout 註記寫入 `docs/智學互動平台/00_專案規劃/智學互動平台剩餘工作WBS.md` FE-5.2 段，格式沿用 FE-5.1 status 慣例。
+- 發現並修正 CP3 遺漏：`frontend-api-reference.md:149` 原寫 quiz `correctOptionRefs`「必填恰一」，與 runtime exact-set（可多正解，`question-contract.spec.ts:114` 接受 `['a','c']`）矛盾；已改為「至少一（exact-set，可多正解）」。
+- FE-5.2 變更仍為 UI working tree 未提交狀態（branch `main`，HEAD `8ec85d3`）；closeout 不包含 commit，提交由使用者另行決定。
+
+### Results — CLOSED (2026-09-07)
+- WBS FE-5.2.1–FE-5.2.4 已勾選；FE-5.2 status 標記 **CLOSED**。
+- 證據：`fe-5-2-quiz.spec.ts` **1 passed / 0 failed / 0 skipped**（17.9s test，2.6m total）；FE-5.1 gate 前置 **1 passed / 0 failed / 0 skipped**（30.0s test，2.8m total）；full unit `40 files / 329 tests PASS`；typecheck／lint:check（0 errors；13 pre-existing warnings）／build／`git diff --check` 全綠。
+- FE-4.2/4.3/4.4 regressions：BLOCKED（缺 FE42_*/FE44_* env + `http://localhost:3001` origin），pre-existing fixture boundary，非 FE-5.2 回歸。
+- **Decision:** FE-5.2 **CLOSED**。WBS 勾選與 closeout 註記完成；未宣稱 FE-5.3/5.4 進度。

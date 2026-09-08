@@ -2513,3 +2513,17 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 - **Component regressions:** `npm test -- test/fe-5-4-four-question-acceptance.test.tsx test/poll-single-question.test.tsx test/poll-multiple-question.test.tsx test/quiz-question.test.tsx test/open-text-question.test.tsx test/learner-live-session-view.test.tsx` → **6 files passed / 76 tests passed / 0 failed / 0 skipped**.
 - **Real-backend matrix:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium.
 - **Notes:** Vitest emitted only the existing non-failing `configLoader: 'native'` ESM warning. FE-5.4 matrix execution and targeted component regressions are now green; stale-browser-race and participant-safe browser evidence remain outside this run.
+
+### FE-5.4 full regression rerun — 2026-09-08
+
+- **Component regressions:** PASS — 6 files / 76 tests passed / 0 failed / 0 skipped in 1.35 seconds; no files modified.
+- **Real-backend matrix:** FAIL — `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` ran with the isolated FE51 env and timed out after 180 seconds; cleanup again reported closed browser-context errors. Result: 0 passed / 1 failed / 0 skipped, duration 316 seconds.
+- **Status:** FE-5.4 component regressions remain green, but the full suite rerun is **BLOCKED** by an intermittent real-backend/browser runtime timeout. Existing committed zero-skip matrix evidence remains recorded separately; this rerun does not revoke it or claim a new pass.
+
+### FE-5.4 intermittent timeout fix — 2026-09-08
+
+- **Root cause:** the remaining admin fixture login used the UI during cold Next/React hydration; the username could be reset before submit, producing client-side `請輸入帳號` with no backend request and an unbounded response wait.
+- **Fix:** admin fixture authentication now uses the existing direct `loginViaRequest` helper before navigating to `/admin`; production login/realtime code was not changed.
+- **Verification:** Prettier, `npm run typecheck`, `npm run lint:check` (0 errors, 21 pre-existing warnings), and `git diff --check` passed.
+- **Matrix rerun:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium.
+- **Status:** intermittent login hydration timeout resolved for the verified isolated runtime. Stale-browser-race and participant-safe browser evidence remain explicitly unclaimed.

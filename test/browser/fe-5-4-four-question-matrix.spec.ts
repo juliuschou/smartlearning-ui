@@ -14,7 +14,6 @@ import {
   enrollStudent,
   fixture,
   loginViaRequest,
-  loginViaUi,
   newActor,
   openQuestion,
   startSession,
@@ -90,12 +89,12 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
       teacherPage = await teacherContext.newPage();
       studentPage = await studentContext.newPage();
       const adminPage = await adminContext.newPage();
-      await loginViaUi(
-        adminPage,
+      await loginViaRequest(
+        adminContext,
         fixture.adminUsername,
         fixture.adminPassword,
-        "/admin",
       );
+      await adminPage.goto("/admin", { waitUntil: "domcontentloaded" });
       const student = await createAccount(
         adminContext.request,
         adminContext,

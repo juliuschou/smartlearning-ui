@@ -364,11 +364,27 @@ export async function closeSession(
   context: BrowserContext,
   sessionId: string,
 ) {
+  const currentResponse = await request.get(
+    `${fixture.apiBase}/live-sessions/${sessionId}`,
+  );
+  const currentSession = parseSession(
+    await readJson(currentResponse, "live session before close"),
+    "live session before close",
+  );
+  if (currentSession.status === "closed") return;
+  expect(currentSession.status, "live session state before close").toBe(
+    "active",
+  );
   const response = await request.post(
     `${fixture.apiBase}/live-sessions/${sessionId}/close`,
     { headers: await mutationHeaders(context) },
   );
   expect(response.status()).toBe(201);
+  const closedSession = parseSession(
+    await readJson(response, "close live session"),
+    "close live session",
+  );
+  expect(closedSession.status, "live session close state").toBe("closed");
 }
 
 export async function enrollStudent(

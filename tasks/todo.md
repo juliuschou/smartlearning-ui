@@ -2473,7 +2473,7 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 - [x] Add `test/browser/fe-5-4-four-question-matrix.spec.ts` using the CP3 helper.
 - [x] Configure one isolated course/session with Poll single, Poll multiple, Quiz, and Open text.
 - [x] Add keyboard submission, mobile/desktop overflow, lifecycle sequencing, and cleanup orchestration.
-- [ ] Execute the matrix with all four scenarios and zero skips.
+- [x] Execute the matrix with all four scenarios and zero skips.
 - [ ] Capture stale browser race and participant-safe browser evidence.
 
 ### Working Notes
@@ -2500,3 +2500,10 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 - **Credential preflight:** direct login against the isolated backend returned HTTP `201`.
 - **Matrix execution:** reran `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` with the FE51 env loaded. The Chromium run timed out at 180 seconds; cleanup then reported a browser context already closed (`Target.disposeBrowserContext`).
 - **Decision:** FE-5.4 CP4 remains **BLOCKED**. No zero-skip matrix, stale-browser-race, or participant-safe browser evidence is claimed. The failed run may have left fixture-scoped accounts/course in the isolated DB; the runtime and volume were not deleted.
+
+### CP4 fix and successful rerun — 2026-09-08
+
+- **Fix:** Open-text keyboard submission now activates the `送出答案` button instead of pressing Enter inside the textarea. The matrix uses bounded manual snapshot refresh retries with transition diagnostics; request-based login avoids the flaky browser login wait for disposable teacher/student actors. Shared session cleanup is idempotent.
+- **Verification:** targeted Prettier, `npm run typecheck`, `npm run lint:check`, and `git diff --check` passed. Lint reported 0 errors and 21 pre-existing warnings.
+- **Matrix:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium.
+- **Scope:** this closes the four-question matrix execution criterion. Stale-browser-race and participant-safe browser evidence remain explicitly unclaimed.

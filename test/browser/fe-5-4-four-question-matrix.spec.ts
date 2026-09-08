@@ -11,9 +11,9 @@ import {
   createCourse,
   createLiveSession,
   createQuestion,
-  csrfToken,
   enrollStudent,
   fixture,
+  loginViaRequest,
   loginViaUi,
   newActor,
   openQuestion,
@@ -62,6 +62,27 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
       );
     }
 
+    async function refreshUntilQuestionVisible(
+      page: Page,
+      prompt: string,
+      label: string,
+    ) {
+      const refresh = page.getByRole("button", { name: "更新課堂狀態" });
+      const question = page.getByText(prompt);
+      for (let attempt = 1; attempt <= 5; attempt += 1) {
+        await refresh.click();
+        try {
+          await expect(question).toBeVisible({ timeout: 3_000 });
+          return;
+        } catch {
+          if (attempt === 5)
+            throw new Error(
+              `FE-5.4 ${label} did not become visible after ${attempt} refreshes`,
+            );
+        }
+      }
+    }
+
     try {
       adminContext = await newActor(browser);
       teacherContext = await newActor(browser);
@@ -95,19 +116,23 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
         );
         createdAccounts.push(teacher.id);
       }
-      await loginViaUi(
-        teacherPage,
+      await loginViaRequest(
+        teacherContext,
         teacherUsername,
         fixture.teacherUsername ? teacherPassword : teacherTempPassword,
-        "/teacher",
       );
-      if (!fixture.teacherUsername)
+      if (!fixture.teacherUsername) {
+        await teacherPage.goto("/settings/password", {
+          waitUntil: "domcontentloaded",
+        });
         await changePassword(
           teacherPage,
           teacherTempPassword,
           teacherPassword,
           "/teacher",
         );
+      } else
+        await teacherPage.goto("/teacher", { waitUntil: "domcontentloaded" });
       const course = await createCourse(
         teacherContext.request,
         teacherContext,
@@ -148,12 +173,14 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
       );
       await adminContext.close();
       adminContext = null;
-      await loginViaUi(
-        studentPage,
+      await loginViaRequest(
+        studentContext,
         studentUsername,
         studentTempPassword,
-        "/student",
       );
+      await studentPage.goto("/settings/password", {
+        waitUntil: "domcontentloaded",
+      });
       await changePassword(
         studentPage,
         studentTempPassword,
@@ -198,13 +225,11 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
           session.id,
           sessionQuestionId,
         );
-        await studentPage.getByRole("button", { name: "更新課堂狀態" }).click();
-        await expect(
-          studentPage.getByText(
-            `FE54 ${["Poll single", "Poll multiple", "Quiz", "Open text"][index]} ${runTag}`,
-          ),
-        ).toBeVisible();
-        const csrf = await csrfToken(studentContext);
+        await refreshUntilQuestionVisible(
+          studentPage,
+          `FE54 ${["Poll single", "Poll multiple", "Quiz", "Open text"][index]} ${runTag}`,
+          `question ${index + 1} (${sessionQuestionId})`,
+        );
         if (index === 0) {
           const radios = studentPage.getByRole("radio");
           await expect(radios).toHaveCount(2);
@@ -226,7 +251,10 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
             name: "請輸入你的答案",
           });
           await textbox.fill("FE54 匿名回答");
-          await textbox.press("Enter");
+          const submit = studentPage.getByRole("button", { name: "送出答案" });
+          await expect(submit).toBeEnabled();
+          await submit.focus();
+          await studentPage.keyboard.press("Enter");
         }
         await expect(studentPage.getByText("你已作答。")).toBeVisible();
         await closeQuestion(

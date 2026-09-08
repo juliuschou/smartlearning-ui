@@ -2362,3 +2362,141 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 - **What changed:** added `test/open-text-question.test.tsx` with 10 component tests covering normalized Unicode text, strict 201 receipt validation, durable retry behavior, storage fail-closed behavior, participant-safe results, malformed/error states, anonymous access loss, and closed-question read-only controls. Updated `OpenTextQuestion` so non-open questions disable the textarea fieldset defensively; the shared lifecycle gate remains authoritative for normal learner dispatch.
 - **Verification:** `npm test -- test/open-text-question.test.tsx` → **1 file / 10 tests passed**. The run emitted only the existing Vitest/Vite config-loader warning.
 - **Scope:** no backend, schema, dependency, or browser fixture changes. Real-backend FE-5.3 acceptance remains covered by the existing Playwright record above; this CP2 result is component-level only.
+
+## 2026-09-08 — FE-5.4 CP0: contract and runtime readiness audit
+
+### Checklist
+
+- [x] Record FE-5.4 scope and acceptance matrix for Poll single, Poll multiple, Quiz, and Open text.
+- [x] Confirm backend envelope, auth, CSRF, idempotency, snapshot, results, and closed-question contracts.
+- [x] Inspect BE-4 endpoint wiring, stale-submit implementation, and historical backend evidence.
+- [x] Compare FE-4.2, FE-5.1, FE-5.2, and FE-5.3 browser evidence and current runner boundaries.
+- [x] Record browser-runtime limitations and missing fixture/runtime variables.
+- [x] Decide CP0 status: **BLOCKED — CP1+ not unlocked by fresh runtime evidence**.
+- [x] Do not begin CP1 or update the authoritative WBS as part of this CP0 audit.
+
+### Acceptance and contract notes
+
+- The authoritative backend reference is `../smartLearning-backend/docs/frontend-api-reference.md` (generated 2026-08-31). Versioned responses use `{ data, meta, error }`; frontend code must unwrap `data`.
+- The four accepted learner types are Poll single/multiple (`poll` + `selectionMode`), Quiz (`quiz`), and Open text (`open_text`). Submissions use `{ sessionQuestionId, selectedOptionRefs }` for poll/quiz and `{ sessionQuestionId, textAnswer }` for open text; every submission requires a UUID `Idempotency-Key`.
+- Student-cookie mutations require exact `Origin` and `X-CSRF-Token`; anonymous submissions follow the participant-token path. Snapshots/results are participant-safe: no teacher counts, question selections, identity linkage, or pre-reveal correctness. Quiz correctness appears only after close; open-text result rows are anonymous `{ text }`.
+- Results are per-question; there is no full-session results endpoint. A participant snapshot against a terminal session remains `409 SESSION_NOT_JOINABLE`; the separate student-status receipt is read-only and returns lifecycle state.
+- Backend source confirms a stale post-close submission currently returns HTTP `409` with stable `error.code: CONFLICT` and `field: status` from `SubmissionService`'s active/open state check (`smartLearning-backend/src/modules/submissions/application/submission.service.ts`). Do not encode `SESSION_QUESTION_NOT_OPEN` for submission: that code is used by result retrieval; `SUBMISSION_CONFLICT` is reserved for idempotency/immutable-answer conflicts.
+
+### Working Notes
+
+- Existing production support is already present for later validation: `LearnerLiveSessionView.tsx` gates non-open questions before renderer dispatch; all four renderers and their durable attempt modules exist; focused component/API/realtime tests exist.
+- Existing real-backend browser specs are `fe-4-2-poll-single.spec.ts`, `fe-5-1-poll-multiple.spec.ts`, `fe-5-2-quiz.spec.ts`, and `fe-5-3-open-text.spec.ts`. Their recorded final runs establish single-type precedents, not FE-5.4's combined lifecycle, keyboard, screen-reader, 390×844 responsive, stale-race, and four-type matrix evidence.
+- `playwright.config.ts` defines a Chromium-only project and does not start the backend. The existing FE51 HTTP proxy does not reliably proxy `/socket.io`; manual refresh and component realtime cache tests remain the honest boundary unless a later spike proves otherwise. No FE-5.4-specific matrix or fixture helper exists yet.
+- Backend source/controllers and historical backend task evidence show BE-4 endpoint implementation and prior DB-backed passes, but the authoritative WBS still leaves BE-4.1–BE-4.4 unchecked. This CP0 record does not change that WBS state.
+
+### Dependencies & Environment
+
+- UI repository: `/home/user/projects/smartLearning/smartLearning-ui`; backend repository: `/home/user/projects/smartLearning/smartLearning-backend`.
+- Required for fresh runtime evidence: Node 24+, running backend at a credential-free configured origin, migrated isolated PostgreSQL test/disposable database, CORS allowlisting for the browser origin, bootstrap credentials, FE51 fixture credentials, and a same-host UI/API browser origin with secure-cookie-compatible configuration.
+- Read-only inspection confirmed backend repositories are clean. The existing isolated `smartlearning-fe53` Compose runtime is healthy and `test/browser/FE51.env` provides the fixture variables; secrets were not printed. No mutating backend integration command was run from the UI shell.
+
+### Risk & Rollback
+
+- **Risk: medium/low.** Main remaining risks are the FE-5.4 cross-type acceptance work and known fixture/origin/HTTPS and historical-WBS evidence boundaries. No API/schema/dependency behavior is changed.
+- **Rollback:** remove only this CP0 task-record section; do not reset unrelated working-tree changes. No database migration, production behavior, test behavior, or WBS state changes are part of CP0.
+
+### Results — PASS (2026-09-08)
+
+- **Contract:** PASS by static source/reference inspection. BE-4 route wiring exists for join, snapshot, submission, results, start/open/close, and session close; backend stale-submit classification is confirmed as `409 CONFLICT` in source and DB-backed integration evidence.
+- **Historical evidence:** PASS as recorded evidence. FE-5.1, FE-5.2, and FE-5.3 each have final Chromium real-backend acceptance records with `0 skipped`; FE-4.2 remains the single-choice precedent. This does not satisfy the cross-type FE-5.4 acceptance contract.
+- **Fresh runtime:** PARTIAL PASS. Existing `smartlearning-fe53` Compose services are running; direct `/health/live`, `/health/ready`, and `/api/docs-json` each returned HTTP 200; OpenAPI lists all required FE-5.4 routes; `prisma migrate status` reports 15 migrations and schema up to date; FE-5.3 real-backend Chromium acceptance passed `1/1`, `0 skipped` using `test/browser/FE51.env`.
+- **Fresh stale evidence:** PASS. With explicit authorization, local backend Jest ran against the isolated FE51 database `smartlearning_fe51_test`: `poll-submission.integration-spec.ts` → **1 suite / 8 tests passed / 0 failed**, including close-first ordering where a blocked stale submission returns `CONFLICT` and no row is stored. This confirms the authoritative stale rejection path on the current runtime database.
+- **Unblock condition:** CP1+ may proceed only after separate user authorization; this CP0 does not implement or claim any FE-5.4 component/browser matrix work.
+- **Scope:** only `tasks/todo.md` changed for this CP0 audit. FE-5.4.1–FE-5.4.5 remain unchecked in the authoritative WBS; QA-2.4, QA-2.6, FE-7, and release remain outside scope.
+
+### CP0 decision
+
+**PASS — CP0 readiness gate complete; CP1+ remains separately gated.** Static contract, historical evidence, healthy FE51 runtime, migration state, real-browser acceptance, and fresh stale-submit integration evidence are recorded. Existing CP1/CP2 history remains preserved and is not retroactively relabeled as CP0 work.
+
+## 2026-09-08 — FE-5.4 CP1: four-question component acceptance
+
+### Checklist
+
+- [x] Add table-driven component acceptance for Poll single, Poll multiple, Quiz, and Open text.
+- [x] Verify accessible prompt/control discovery and keyboard-driven submission payloads.
+- [x] Verify result loading uses a status role and closed questions keep controls disabled.
+- [x] Verify Quiz pre-reveal correctness privacy and anonymous Open-text result rendering.
+- [x] Run targeted test, typecheck, lint, and Prettier checks.
+- [ ] Add the dedicated real-backend browser matrix (CP3/CP4; not part of this slice).
+
+### Working Notes
+
+- Added `test/fe-5-4-four-question-acceptance.test.tsx` using a shared scenario table rather than four duplicated suites. It reuses the existing four renderers and API mock boundary.
+- Direct renderer closed-state behavior is asserted as disabled controls; the shared `LearnerLiveSessionView` lifecycle-first gate's control removal remains covered by `test/learner-live-session-view.test.tsx` and is not duplicated here.
+- This slice does not alter production components, API schemas, submission-attempt storage, realtime protocol, browser fixtures, dependencies, or WBS state.
+
+### Results — PASS (2026-09-08)
+
+- **Verification:** `npm test -- test/fe-5-4-four-question-acceptance.test.tsx` → **1 file / 13 tests passed**; `npm run typecheck` → **PASS**; `npm run lint:check` → **PASS** with 0 errors and 22 existing warnings; `npx prettier --check test/fe-5-4-four-question-acceptance.test.tsx` → **PASS**; `git diff --check` → **PASS**.
+- **Scope:** `test/fe-5-4-four-question-acceptance.test.tsx` is the only new implementation file; no production behavior or WBS status changed. CP1 does not claim screen-reader audit, responsive browser smoke, stale real-browser race, or four-type real-backend matrix completion.
+
+### CP1 decision
+
+**PASS — component acceptance slice complete.** CP3/CP4 browser fixture and real-backend matrix remain pending and require separate authorization.
+
+## 2026-09-08 — FE-5.4 CP3: real-backend fixture helper
+
+### Checklist
+
+- [x] Add a FE-5.4-specific browser support helper without migrating existing FE-4.2/FE-5.1–5.3 specs.
+- [x] Add env/preflight and same-host secure-cookie validation.
+- [x] Add envelope parsing, login/CSRF, actor provisioning, course/question/session lifecycle, enrollment, cleanup, request-header/body assertions, and overflow assertion helpers.
+- [x] Run typecheck, lint, Prettier, and diff checks.
+- [ ] Build the four-question real-backend matrix (CP4; not part of this slice).
+
+### Working Notes
+
+- Added `test/browser/support/fe5-real-backend-fixture.ts`. It exports only FE-5.4 test-only helpers and keeps the existing browser specs unchanged.
+- The helper requires FE51 runtime variables, rejects malformed or cross-host API/UI origins, configures HTTPS tolerance for local secure-cookie fixtures, and never prints credential values.
+- Provisioning uses the existing API contract: account/course/question/session/enrollment helpers plus explicit CSRF/Origin mutation headers. Request assertions use `allHeaders()` for cross-origin Origin visibility and support exact JSON body-key checks.
+- `assertNoHorizontalOverflow` is shared for the CP4 mobile smoke. The helper does not add dependencies, alter runtime code, or update WBS state.
+
+### Results — PASS (2026-09-08)
+
+- **Verification:** `npx prettier --check test/browser/support/fe5-real-backend-fixture.ts` → **PASS**; `npm run typecheck` → **PASS**; `npm run lint:check` → **PASS** with 0 errors and 21 existing warnings; `git diff --check` → **PASS**.
+- **Scope:** only the new test helper and this task record changed for CP3. Existing FE-4.2/FE-5.1–5.3 specs were not migrated or rewritten; CP4 matrix, responsive browser evidence, and WBS closeout remain pending.
+
+### CP3 decision
+
+**PASS — FE-5.4 fixture helper is ready for CP4 matrix implementation.**
+
+## 2026-09-08 — FE-5.4 CP4: four-question Chromium real-backend matrix
+
+### Checklist
+
+- [x] Add `test/browser/fe-5-4-four-question-matrix.spec.ts` using the CP3 helper.
+- [x] Configure one isolated course/session with Poll single, Poll multiple, Quiz, and Open text.
+- [x] Add keyboard submission, mobile/desktop overflow, lifecycle sequencing, and cleanup orchestration.
+- [ ] Execute the matrix with all four scenarios and zero skips.
+- [ ] Capture stale browser race and participant-safe browser evidence.
+
+### Working Notes
+
+- The matrix spec provisions actors and a teacher-owned course, creates the four questions, enrolls a disposable student, sequences start → open → submit → close for each question, then closes the session and aggregates cleanup errors.
+- The spec uses Chromium-only Playwright configuration and the existing HTTPS same-origin FE51 proxy boundary. It does not claim Socket.IO DOM evidence.
+- The first run exposed a fixture helper login race; `loginViaUi` was hardened to await the login response and verify filled fields. The next run reached the backend but received `401` for the configured admin credentials.
+
+### Results — BLOCKED (2026-09-08)
+
+- **Implementation:** `test/browser/fe-5-4-four-question-matrix.spec.ts` added and typechecks; Prettier formatting applied.
+- **Runtime:** authorized `smartlearning-fe53` stack was restarted successfully; DB healthy, migrate completed, backend health became ready.
+- **Matrix execution:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` could not proceed. The configured `FE51_ADMIN_USERNAME`/password was rejected by the fresh runtime with HTTP `401`, so no four-question mutation scenario ran.
+- **Earlier failure:** one run also observed backend `ETIMEDOUT`/HTTP `500` after the backend container stopped; the stack restart resolved availability but not the credential mismatch.
+- **Scope:** no WBS updates and no claims for FE-5.4.5, stale browser race, or responsive matrix completion. Existing runtime/browser artifacts were not deleted.
+
+### CP4 decision
+
+**BLOCKED — matrix implementation exists, but execution requires valid isolated FE51 admin credentials (or reseeding the isolated runtime) before zero-skip acceptance can be claimed.**
+
+### CP4 rerun — 2026-09-08
+
+- **Provisioning:** re-provisioned a fresh active admin in the existing isolated `smartlearning-fe53` runtime using the compiled bootstrap entrypoint; no volume recreation or shared runtime mutation. Credentials were stored only in gitignored `test/browser/FE51.env` (`chmod 600`) and were not printed.
+- **Credential preflight:** direct login against the isolated backend returned HTTP `201`.
+- **Matrix execution:** reran `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` with the FE51 env loaded. The Chromium run timed out at 180 seconds; cleanup then reported a browser context already closed (`Target.disposeBrowserContext`).
+- **Decision:** FE-5.4 CP4 remains **BLOCKED**. No zero-skip matrix, stale-browser-race, or participant-safe browser evidence is claimed. The failed run may have left fixture-scoped accounts/course in the isolated DB; the runtime and volume were not deleted.

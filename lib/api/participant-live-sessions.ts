@@ -195,6 +195,41 @@ export interface SubmitOpenTextVariables {
   actor?: ParticipantActor;
 }
 
+async function submitParticipantAnswer<T>(
+  path: string,
+  body: CreateSubmissionPayload,
+  idempotencyKey: string,
+  actor: ParticipantActor,
+) {
+  try {
+    return await apiRequestWithStatus<T>(path, {
+      method: "POST",
+      body,
+      mutate: true,
+      idempotencyKey,
+      auth: participantAuth(actor),
+    });
+  } catch (error) {
+    if (
+      error instanceof ApiRequestError &&
+      error.status === 409 &&
+      error.code === "CONFLICT"
+    ) {
+      throw new ApiRequestError(
+        {
+          code: "SUBMISSION_CONFLICT",
+          message: error.message,
+          field: error.field,
+          blocking: true,
+          retryAfterSeconds: error.retryAfterSeconds,
+        },
+        error.status,
+      );
+    }
+    throw error;
+  }
+}
+
 /** Submit one formal option UUID; retries are caller-controlled. */
 export function useSubmitPollSingle() {
   return useMutation<
@@ -209,18 +244,14 @@ export function useSubmitPollSingle() {
       idempotencyKey,
       actor = STUDENT_ACTOR,
     }) =>
-      apiRequestWithStatus<SubmissionDto>(
+      submitParticipantAnswer<SubmissionDto>(
         `/live-sessions/${liveSessionId}/submissions`,
         {
-          method: "POST",
-          body: {
-            sessionQuestionId,
-            selectedOptionRefs: [optionId],
-          } satisfies CreateSubmissionPayload,
-          mutate: true,
-          idempotencyKey,
-          auth: participantAuth(actor),
-        },
+          sessionQuestionId,
+          selectedOptionRefs: [optionId],
+        } satisfies CreateSubmissionPayload,
+        idempotencyKey,
+        actor,
       ),
     retry: false,
   });
@@ -240,18 +271,14 @@ export function useSubmitPollMultiple() {
       idempotencyKey,
       actor = STUDENT_ACTOR,
     }) =>
-      apiRequestWithStatus<SubmissionDto>(
+      submitParticipantAnswer<SubmissionDto>(
         `/live-sessions/${liveSessionId}/submissions`,
         {
-          method: "POST",
-          body: {
-            sessionQuestionId,
-            selectedOptionRefs: optionIds,
-          } satisfies CreateSubmissionPayload,
-          mutate: true,
-          idempotencyKey,
-          auth: participantAuth(actor),
-        },
+          sessionQuestionId,
+          selectedOptionRefs: optionIds,
+        } satisfies CreateSubmissionPayload,
+        idempotencyKey,
+        actor,
       ),
     retry: false,
   });
@@ -278,18 +305,14 @@ export function useSubmitOpenText() {
       idempotencyKey,
       actor = STUDENT_ACTOR,
     }) =>
-      apiRequestWithStatus<SubmissionDto>(
+      submitParticipantAnswer<SubmissionDto>(
         `/live-sessions/${liveSessionId}/submissions`,
         {
-          method: "POST",
-          body: {
-            sessionQuestionId,
-            textAnswer,
-          } satisfies CreateSubmissionPayload,
-          mutate: true,
-          idempotencyKey,
-          auth: participantAuth(actor),
-        },
+          sessionQuestionId,
+          textAnswer,
+        } satisfies CreateSubmissionPayload,
+        idempotencyKey,
+        actor,
       ),
     retry: false,
   });
@@ -308,18 +331,14 @@ export function useSubmitQuiz() {
       idempotencyKey,
       actor = STUDENT_ACTOR,
     }) =>
-      apiRequestWithStatus<SubmissionDto>(
+      submitParticipantAnswer<SubmissionDto>(
         `/live-sessions/${liveSessionId}/submissions`,
         {
-          method: "POST",
-          body: {
-            sessionQuestionId,
-            selectedOptionRefs: selectedOptionIds,
-          } satisfies CreateSubmissionPayload,
-          mutate: true,
-          idempotencyKey,
-          auth: participantAuth(actor),
-        },
+          sessionQuestionId,
+          selectedOptionRefs: selectedOptionIds,
+        } satisfies CreateSubmissionPayload,
+        idempotencyKey,
+        actor,
       ),
     retry: false,
   });

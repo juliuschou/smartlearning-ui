@@ -8,6 +8,7 @@ import {
   closeSession,
   createAccount,
   createCleanupLedger,
+  disableAccount,
   createCourse,
   createLiveSession,
   createQuestion,
@@ -17,6 +18,11 @@ import {
   newActor,
   openQuestion,
   startSession,
+  assertMutationHeaders,
+  assertRequestBodyKeys,
+  browserApiBase,
+  csrfToken,
+  requestBody,
 } from "./support/fe5-real-backend-fixture";
 
 test.describe("FE-5.4 real-backend four-question matrix", () => {
@@ -88,6 +94,7 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
       studentContext = await newActor(browser);
       teacherPage = await teacherContext.newPage();
       studentPage = await studentContext.newPage();
+      await studentPage.setViewportSize({ width: 390, height: 844 });
       const adminPage = await adminContext.newPage();
       await loginViaRequest(
         adminContext,
@@ -170,8 +177,6 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
         course.id,
         student.id,
       );
-      await adminContext.close();
-      adminContext = null;
       await loginViaRequest(
         studentContext,
         studentUsername,
@@ -186,6 +191,7 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
         studentPassword,
         "/student",
       );
+      const studentCsrf = await csrfToken(studentContext);
       await studentPage.getByRole("button", { name: "等候中課堂入口" }).click();
       await expect(studentPage).toHaveURL(
         new RegExp(`/student/live/${session.id}$`),
@@ -229,6 +235,27 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
           `FE54 ${["Poll single", "Poll multiple", "Quiz", "Open text"][index]} ${runTag}`,
           `question ${index + 1} (${sessionQuestionId})`,
         );
+        const staleFirstQuestion = index === 0;
+        if (staleFirstQuestion) {
+          await closeQuestion(
+            teacherContext.request,
+            teacherContext,
+            session.id,
+            sessionQuestionId,
+          );
+        }
+        const submissionRequestPromise = studentPage.waitForRequest(
+          (request) =>
+            request.method() === "POST" &&
+            request.url() ===
+              `${browserApiBase}/live-sessions/${session.id}/submissions`,
+        );
+        const submissionResponsePromise = studentPage.waitForResponse(
+          (response) =>
+            response.request().method() === "POST" &&
+            response.url() ===
+              `${browserApiBase}/live-sessions/${session.id}/submissions`,
+        );
         if (index === 0) {
           const radios = studentPage.getByRole("radio");
           await expect(radios).toHaveCount(2);
@@ -255,13 +282,75 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
           await submit.focus();
           await studentPage.keyboard.press("Enter");
         }
-        await expect(studentPage.getByText("你已作答。")).toBeVisible();
-        await closeQuestion(
-          teacherContext.request,
-          teacherContext,
-          session.id,
-          sessionQuestionId,
+        const submissionRequest = await submissionRequestPromise;
+        const submissionResponse = await submissionResponsePromise;
+        await assertMutationHeaders(
+          submissionRequest,
+          studentCsrf,
+          `question ${index + 1} submission`,
         );
+        const submissionHeaders = await submissionRequest.allHeaders();
+        expect(
+          submissionHeaders["idempotency-key"],
+          `question ${index + 1} idempotency key`,
+        ).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        );
+        assertRequestBodyKeys(
+          submissionRequest,
+          index === 3
+            ? ["sessionQuestionId", "textAnswer"]
+            : ["sessionQuestionId", "selectedOptionRefs"],
+          `question ${index + 1} submission`,
+        );
+        const submissionBody = requestBody(
+          submissionRequest,
+          `question ${index + 1} submission`,
+        );
+        expect(submissionBody.sessionQuestionId).toBe(sessionQuestionId);
+        expect(submissionResponse.status()).toBe(
+          staleFirstQuestion ? 409 : 201,
+        );
+        if (staleFirstQuestion) {
+          await expect(studentPage.getByText("你已作答。")).toHaveCount(0);
+          await expect(studentPage.locator("#poll-error")).toContainText(
+            "作答內容有衝突，請重新整理後再試一次。",
+          );
+          await refreshUntilQuestionVisible(
+            studentPage,
+            `FE54 Poll single ${runTag}`,
+            "stale poll single",
+          ).catch(() => undefined);
+          await expect(
+            studentPage.getByRole("button", { name: "送出答案" }),
+          ).toHaveCount(0);
+          await expect(studentPage.getByRole("radio")).toHaveCount(0);
+        } else {
+          await expect(studentPage.getByText("你已作答。")).toBeVisible();
+          await expect(
+            studentPage.getByRole("button", { name: "送出答案" }),
+          ).toBeDisabled();
+          await closeQuestion(
+            teacherContext.request,
+            teacherContext,
+            session.id,
+            sessionQuestionId,
+          );
+        }
+        if (index === 2)
+          expect(await studentPage.locator("body").innerText()).not.toMatch(
+            /正解|答對|答錯|正確率/,
+          );
+        if (index === 3) {
+          const openTextResult = await studentContext.request.get(
+            `${fixture.apiBase}/live-sessions/${session.id}/questions/${sessionQuestionId}/results`,
+          );
+          expect(openTextResult.status()).toBe(200);
+          const openTextBody = await openTextResult.json();
+          expect(JSON.stringify(openTextBody)).not.toMatch(
+            /participantId|accountId|idempotency|participantToken/i,
+          );
+        }
         await assertNoHorizontalOverflow(studentPage);
       }
       await closeSession(teacherContext.request, teacherContext, session.id);
@@ -280,6 +369,11 @@ test.describe("FE-5.4 real-backend four-question matrix", () => {
         for (const courseId of createdCourses)
           await cleanup.attempt(`archive course ${courseId}`, () =>
             archiveCourse(teacherContext!.request, teacherContext!, courseId),
+          );
+      if (adminContext)
+        for (const accountId of createdAccounts)
+          await cleanup.attempt(`disable account ${accountId}`, () =>
+            disableAccount(adminContext!.request, adminContext!, accountId),
           );
       for (const context of [studentContext, teacherContext, adminContext])
         if (context)

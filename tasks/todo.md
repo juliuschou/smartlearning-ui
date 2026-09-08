@@ -2507,3 +2507,9 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 - **Verification:** targeted Prettier, `npm run typecheck`, `npm run lint:check`, and `git diff --check` passed. Lint reported 0 errors and 21 pre-existing warnings.
 - **Matrix:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium.
 - **Scope:** this closes the four-question matrix execution criterion. Stale-browser-race and participant-safe browser evidence remain explicitly unclaimed.
+
+### FE-5.4 regression rerun — 2026-09-08
+
+- **Component regressions:** `npm test -- test/fe-5-4-four-question-acceptance.test.tsx test/poll-single-question.test.tsx test/poll-multiple-question.test.tsx test/quiz-question.test.tsx test/open-text-question.test.tsx test/learner-live-session-view.test.tsx` → **6 files passed / 76 tests passed / 0 failed / 0 skipped**.
+- **Real-backend matrix:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium.
+- **Notes:** Vitest emitted only the existing non-failing `configLoader: 'native'` ESM warning. FE-5.4 matrix execution and targeted component regressions are now green; stale-browser-race and participant-safe browser evidence remain outside this run.

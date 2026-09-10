@@ -2627,3 +2627,9 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 
 - **Matrix:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` (FE51 env loaded, isolated fe53 runtime) → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium, after the focus-visible production edits. The production class-only changes do not regress the real-backend flow.
 - An intermediate rerun without the FE51 env failed fast with the fixture's own BLOCKED preflight message (`missing FE51_*`) — correct fail-closed behavior, not a skip.
+
+### FE-5.4 closeout — WBS updated — 2026-09-10
+
+- UI commit `a9760b3` — FE-5.4.2/5.4.3 dedicated evidence (keyboard matrix, semantic matrix, focus-visible production parity fixes, user-event `{Space}` tripwire).
+- Docs commit `e714a39` (智學互動平台 repo): FE-5.4.3 checked; 2026-09-10 closeout paragraph added; stale FE-5.1 summary line updated. Only FE-5.4 hunks staged — other sessions' BE-5/FE-6 working-tree edits left untouched.
+- **FE-5.4.1–FE-5.4.5 now all closed.** QA-2.4, QA-2.6, FE-7, BE-4 and release remain open, untouched.

@@ -158,7 +158,7 @@ export function PollSingleQuestion({
             {question.options.map((option) => (
               <label
                 key={option.id}
-                className="flex cursor-pointer items-start gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800"
+                className="flex cursor-pointer items-start gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus-within:border-zinc-500 focus-within:ring-2 focus-within:ring-zinc-400 dark:border-zinc-800 dark:focus-within:border-zinc-400 dark:focus-within:ring-zinc-500"
               >
                 <input
                   type="radio"

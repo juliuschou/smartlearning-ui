@@ -147,3 +147,24 @@
 - **偵測訊號**：migration 在 fresh-run 開始前即報 authentication failure、Playwright preflight 報 required variable missing、或 `https://localhost:3443` 可連線但 join request 不出現且 Chromium 重複 TLS handshake error。
 - **預防規則**：FE51 明確分離 two-base contract：`FE51_API_BASE` 僅供 `APIRequestContext` 直連 backend，HTTPS browser bundle 固定使用 same-origin `/api/v1` 並由 `FE51_BACKEND_ORIGIN` rewrite；browser routes/waits 只能匹配 UI-origin API URL。每次 run 先以 exact project/volume query 證明資源不存在，使用不經 shell re-parse 的受控 env file，確認唯一 UI PID/port owner，所有手動 browser context 顯式設定 local TLS handling，並在 Playwright 前驗證 direct backend health、proxied health/API contract 與 browser TLS；任一 preflight 不成立就停止，不消耗完整 browser timeout。
 - **Tripwire**：runner 啟動前記錄 exact Compose project resource count 必須為 0、migration exit 0、3443 listener 必須由本次 Next process 建立；grep FE51 spec 確認 `page.route`／`waitForRequest`／`waitForResponse` 不使用 direct fixture base，並要求 `/health/ready` direct/proxied 及 `/api/v1/auth/session` proxy envelope 均符合預期後才執行 FE51 spec。
+
+## Do not close WBS items from happy-path evidence alone
+
+- **失敗模式**：將四題型 Chromium happy-path `1 passed / 0 failed / 0 skipped` 與局部 component/accessibility assertions，過度升格為 FE-5.4.2–FE-5.4.5 dedicated acceptance，忽略 authoritative plan 對 390×844 viewport、完整 keyboard traversal、semantic matrix、stale race、participant-safe request boundary 與 cleanup 的明確要求。
+- **偵測訊號**：對照 spec 與 plan 時發現沒有 `setViewportSize({ width: 390, height: 844 })`、沒有 Tab/Shift+Tab/Arrow/focus-trap assertions、helper assertions 未被 matrix 使用，或 task log 已明確寫著 stale/participant-safe browser evidence 未宣稱。
+- **預防規則**：WBS closeout 前逐項建立 `WBS item → dedicated evidence → remaining gap → disposition` 表；happy path、backend stale integration、realtime older-event rejection 與 component role tests 不得互相替代。若任一 acceptance contract 尚缺 dedicated evidence，保留 checkbox 未勾並記錄 BLOCKED。
+- **Tripwire**：執行 WBS 更新前，逐條核對權威計畫的 viewport、keyboard、screen-reader、stale/privacy、request-boundary、cleanup 與 test-count要求，並檢查 browser spec 是否實際執行對應 assertion，而非只存在 helper 或歷史記錄。
+
+## Multi-phase plans need explicit human approval gates
+
+- **失敗模式**：FE-6 計畫雖列出 delivery checkpoints，卻只描述完成條件，沒有規定每站必須停止並等待使用者人工確認，可能讓 agent 將測試通過或自動化報告誤當成繼續授權。
+- **偵測訊號**：使用者明確修正「須增加 Checkpoint，讓我手動確認」。
+- **預防規則**：跨 backend contract、不可逆資料操作、frontend transport、UI 與 real-backend acceptance 的多階段計畫，每個 checkpoint 都要列出人工審查材料、STOP 條件與「收到明確批准後才能進下一站」；agent/CI/test success 不等於批准。
+- **Tripwire**：提交多階段實作計畫前，搜尋 `Checkpoint` 並確認每站同時包含 evidence、manual approval、next-stage gate；涉及 destructive 操作時另要求目標環境與資料安全確認。
+
+### 2026-09-10 — user-event 鍵名大小寫
+
+- **失敗模式**：在 user-event 測試中用 `keyboard("{Space}")` 斷言 Space 切換；`{Space}` 產生 `key:"Space"`，不匹配 `' '` 的 keyup click 行為 → checkbox/radio 沒有切換，斷言默默通過（no-op）或失敗。
+- **偵測訊號**：`toBeChecked()` 失敗但 focus 正確；addEventListener("click") 計數為 0。
+- **預防規則**：Space 一律寫 `keyboard(" ")`；其他具名鍵（ArrowDown、Enter、Tab）目前不受影響。新增 keyboard 測試時先用 click 計數確認 keyup 行為有觸發。
+- **Tripwire**：grep 測試中的 `keyboard("{Space}")` — 應為 0 matches。

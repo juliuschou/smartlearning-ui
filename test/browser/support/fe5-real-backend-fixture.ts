@@ -408,6 +408,37 @@ export async function enrollStudent(
   );
 }
 
+export async function stepUp(
+  request: APIRequestContext,
+  context: BrowserContext,
+  password: string,
+) {
+  const response = await request.post(`${fixture.apiBase}/auth/step-up`, {
+    headers: await mutationHeaders(context),
+    data: { password },
+  });
+  expect(response.status(), "FE-5.4 step-up status").toBe(201);
+}
+
+export async function disableAccount(
+  request: APIRequestContext,
+  context: BrowserContext,
+  accountId: string,
+) {
+  await stepUp(request, context, fixture.adminPassword);
+  const response = await request.post(
+    `${fixture.apiBase}/admin/accounts/${accountId}/disable`,
+    { headers: await mutationHeaders(context) },
+  );
+  expect(response.status(), "FE-5.4 account disable status").toBe(201);
+  const data = dataFromEnvelope<JsonRecord>(
+    await readJson(response, "FE-5.4 account disable"),
+    "FE-5.4 account disable",
+  );
+  expect(data.id).toBe(accountId);
+  expect(data.status).toBe("disabled");
+}
+
 export async function archiveCourse(
   request: APIRequestContext,
   context: BrowserContext,

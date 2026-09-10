@@ -2527,3 +2527,103 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 - **Verification:** Prettier, `npm run typecheck`, `npm run lint:check` (0 errors, 21 pre-existing warnings), and `git diff --check` passed.
 - **Matrix rerun:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium.
 - **Status:** intermittent login hydration timeout resolved for the verified isolated runtime. Stale-browser-race and participant-safe browser evidence remain explicitly unclaimed.
+
+## 2026-09-08 — FE-5.4 CP5: realtime fixture boundary
+
+### Checklist
+
+- [x] Add participant-side `result.updated` cache-transition coverage for Poll single, Poll multiple, Quiz, and Open text.
+- [x] Verify participant result cache isolation, teacher-cache non-interference, and older event-sequence rejection.
+- [x] Decide whether a Next cache/Activity test or browser Socket.IO spike is required by the FE-5.4 acceptance contract.
+- [x] Run focused realtime/component tests, typecheck, lint, formatting, and diff checks.
+- [ ] Update authoritative WBS entries (CP6 only; not part of CP5).
+
+### Working Notes
+
+- `useParticipantLiveSessionEvents` already handles `result.updated` by validating the envelope, accepting the event sequence, seeding only the matching participant result key, and invalidating that same key. The new table-driven test exercises that existing boundary for all four question/result shapes.
+- Next 16 `cacheComponents`/Activity route-state preservation is not enabled in this app and is unrelated to the realtime adapter contract; no cache-transition test was added.
+- The FE51 HTTPS proxy does not reliably proxy `/socket.io`, and CP4 explicitly did not claim Socket.IO DOM evidence. The acceptance contract does not require no-reload browser DOM proof for this checkpoint, so no custom proxy or browser websocket spike was added.
+
+### Results — PASS (2026-09-08)
+
+- **What changed:** added four participant adapter cases in `test/participant-realtime-adapter.test.tsx` for Poll single, Poll multiple, Quiz, and Open text `result.updated` payloads. Each case confirms participant-only cache seeding, teacher-cache isolation, and rejection of an older event sequence.
+- **Verification:** `npm test -- test/participant-realtime-adapter.test.tsx test/realtime-adapter.test.tsx test/fe-5-4-four-question-acceptance.test.tsx` → **3 files / 35 tests passed / 0 failed / 0 skipped**; `npm run typecheck` → **PASS**; `npm run lint:check` → **PASS** (0 errors, 21 pre-existing warnings); `npx prettier --check test/participant-realtime-adapter.test.tsx` → **PASS** after formatting; `git diff --check` → **PASS**.
+- **Scope boundary:** CP5 proves participant realtime cache transitions at adapter level only. It does not claim Socket.IO transport/DOM evidence, no-reload browser reveal/close transitions, stale-browser race, or WBS closeout. Existing CP4 zero-skip matrix evidence remains separately recorded.
+
+### CP5 decision
+
+**PASS — realtime fixture boundary complete.** No browser websocket spike is required under the current FE-5.4 contract; CP6 remains pending for evidence aggregation and any separately authorized WBS closeout.
+
+## 2026-09-08 — FE-5.4 CP6: evidence aggregation and WBS closeout review
+
+### Checklist
+
+- [x] Map CP0–CP5 evidence to FE-5.4.1–FE-5.4.5 without overstating unverified stale-browser behavior.
+- [x] Review the authorized WBS update against the authoritative FE-5.4 plan and revert unsupported partial closure.
+- [x] Keep FE-5.4.1–FE-5.4.5 open because required dedicated evidence gaps remain.
+- [x] Preserve QA-2.4, QA-2.6, FE-7, BE-4, and overall release as independent scope.
+- [x] Run final diff and focused verification checks.
+
+### Evidence mapping
+
+| WBS item | Existing evidence | Remaining gap | Disposition |
+|---|---|---|---|
+| FE-5.4.1 | Component loading/closed coverage and backend stale-submit contract | No browser close-first stale race, no four-type error matrix, or refresh convergence proof | **PENDING** |
+| FE-5.4.2 | Component control interaction and happy-path browser keyboard actions | No complete Tab/Shift+Tab/Arrow/focus-visible/keyboard-trap sanity evidence | **PENDING** |
+| FE-5.4.3 | Partial Testing Library role/name assertions | No dedicated help-text, error, result, closed-state semantic matrix or accessibility-tree check | **PENDING** |
+| FE-5.4.4 | Overflow helper and happy-path browser run | Matrix did not explicitly set and record 390×844 during the four-question flow | **PENDING** |
+| FE-5.4.5 | Isolated Chromium four-question run: 1 passed / 0 failed / 0 skipped | No complete stale, participant-safe, request-boundary, duplicate-submit, and account-cleanup evidence | **PENDING** |
+
+### Results — BLOCKED (evidence incomplete)
+
+- **Authoritative WBS:** after evidence review, FE-5.4.1–FE-5.4.5 remain `[ ]`. The temporary partial-closeout edit was reverted rather than overstating the acceptance state.
+- **Verification:** focused FE-5.4/realtime suite remains **3 files / 35 tests passed / 0 failed / 0 skipped**; `npm run typecheck` and `git diff --check` passed. Existing lint evidence is 0 errors with 21 pre-existing warnings; the Vite config-loader warning is non-failing.
+- **Important correction:** the successful browser run proves a four-question Chromium happy path only. It does not prove the FE-5.4 plan's complete mobile, keyboard, screen-reader, stale-race, privacy, request-contract, or cleanup matrix.
+- **Scope boundary:** QA-2.4, QA-2.6, FE-7, BE-4 closeout, and release acceptance remain untouched and unclaimed.
+
+### CP6 decision
+
+**BLOCKED — evidence aggregation is complete, but WBS closeout is not justified. Next work must close the five dedicated evidence gaps before any FE-5.4 checkbox is changed.**
+
+## 2026-09-08 — FE-5.4 dedicated evidence implementation attempt
+
+### What changed
+
+- Added component-level keyboard, semantic, closed-state, and stale-snapshot convergence assertions in `test/fe-5-4-four-question-acceptance.test.tsx` and `test/learner-live-session-view.test.tsx`.
+- Hardened `test/browser/fe-5-4-four-question-matrix.spec.ts` with an explicit 390×844 mobile viewport, submission request/response capture, exact Origin/CSRF/body-key/idempotency assertions, participant-safe negative checks, a close-first Poll-single stale-submit path, and run-scoped account disable cleanup.
+- Added FE-5.4 test-only `stepUp`/`disableAccount` helpers in `test/browser/support/fe5-real-backend-fixture.ts`. Cleanup is restricted to dynamically created account IDs recorded after identity-validated creation responses.
+
+### Verification
+
+- `npm test -- test/fe-5-4-four-question-acceptance.test.tsx test/learner-live-session-view.test.tsx test/participant-realtime-adapter.test.tsx` → **3 files / 54 tests passed / 0 failed / 0 skipped**.
+- `npm run typecheck` → **PASS**.
+- `npm run test:browser -- --list test/browser/fe-5-4-four-question-matrix.spec.ts` → **1 Chromium test discovered**.
+- `npx prettier --write` applied to edited FE-5.4 files; `git diff --check` → **PASS**.
+- Real-browser execution is **BLOCKED** in this shell because the required FE51 environment variables were not loaded. No authenticated mutation or cleanup action was executed by this attempt.
+
+### Remaining evidence gaps
+
+- The browser matrix changes require a real isolated FE51 runtime run to verify stale rejection, request assertions, mobile rendering, privacy, duplicate-submit behavior, and cleanup.
+- Component coverage is improved but does not yet constitute a complete four-type error/retry semantic matrix or visual focus-ring audit.
+- FE-5.4.1–FE-5.4.5 remain unchecked in the authoritative WBS until the real-browser run and remaining component matrix are verified.
+
+### FE-5.4 dedicated evidence browser rerun — 2026-09-10
+
+- **Environment:** the isolated `smartlearning-fe53` stack had been down since the last Docker restart (containers `Exited (255)`). Restarted `smartlearning-fe53-db-1` + `smartlearning-fe53-backend-1`; backend `/health/live` returned 200. Regenerated the expired `/tmp/fe42-{key,cert}.pem` self-signed HTTPS fixture pair (`openssl req -x509`, CN=localhost, 2 days).
+- **Credential preflight:** `POST /auth/login` with the gitignored FE51 admin credentials returned **201** against the isolated backend.
+- **Matrix execution:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium (mobile 390×844 + desktop widths, request/Origin/CSRF/idempotency assertions, participant-safe negative checks, close-first stale-submit path, account-disable cleanup).
+- **Scope:** this executes the hardened matrix committed in the "dedicated evidence implementation attempt" entry. It does not by itself close FE-5.4.1–FE-5.4.5; the remaining component-matrix gaps (full four-type error/retry semantics, keyboard/focus-ring audit) are unchanged until separately verified.
+
+### FE-5.4.2/5.4.3 dedicated evidence — 2026-09-10
+
+- **FE-5.4.2 keyboard:** added table-driven `"$name completes answering with keyboard only"` covering all four types — Tab/Shift+Tab traversal with no-trap sanity (forward + reverse leave the answer controls; focus never stuck on body), native radio Arrow+Space semantics (Poll single), independent Space toggles + Tab between checkboxes (Poll multiple/Quiz), and typed text + Enter submit (Open text). Added `"$name renders visible focus indicators"` asserting `focus-within:ring-2` on answer labels and `focus-visible`/ring on the submit button.
+- **FE-5.4.3 semantics:** added `"$name associates help text and exposes the prompt as the control group name"` (aria-describedby → help text for Open text; fieldset legend carries the prompt for the option types), `"$name reports submission errors as an alert and retains retryable input"` (role="alert" with curated NETWORK_ERROR message, input retained, successful retry), and `"$name closed state is announced and its accessibility tree leaks nothing"` (fieldset disabled, 尚未作答, negative regex for correctness/identity linkage, options still visible).
+- **Production fixes (CP2-permitted, focus-visible only):** PollSingleQuestion option labels gained the same `focus-within:ring-2` treatment Poll multiple/Quiz already had; submit buttons in PollMultipleQuestion/QuizQuestion/OpenTextQuestion gained `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500` (matching PollSingleQuestion). No schema/query-key/attempt-storage/lifecycle-gate changes.
+- **Tripwire learned:** `@testing-library/user-event` key names are case-sensitive — `keyboard("{Space}")` produces `key:"Space"` which does NOT match the `' '` keyup behavior (no click dispatched → no toggle). Use `keyboard(" ")` for Space. The pre-existing bespoke Poll-single keyboard test had `{Space}` at line 241 which silently asserted a no-op; corrected to `" "`.
+- **Verification:** `npm test -- test/fe-5-4-four-question-acceptance.test.tsx` → **38 passed / 0 failed**; targeted FE-5.4 regression (acceptance + learner view + 4 renderers + realtime adapter) → **7 files / 109 passed**; full unit suite → **43 files / 388 passed / 0 failed**; `npm run typecheck` PASS; `npx eslint` on the five edited files → clean; prettier --check PASS; `git diff --check` PASS. (42 pre-existing warnings elsewhere; Vite config-loader warning non-failing.)
+- **Scope:** FE-5.4.2 and FE-5.4.3 dedicated component-level evidence is now in place. WBS closeout still requires: real-browser matrix rerun with the hardened spec after these production edits, plus the CP6 aggregation step; the plan's screen-reader sanity is satisfied as a Testing Library semantic matrix (no new a11y dependency, per plan constraint).
+
+### FE-5.4.2/5.4.3 post-fix browser matrix rerun — 2026-09-10
+
+- **Matrix:** `npm run test:browser -- --workers=1 test/browser/fe-5-4-four-question-matrix.spec.ts` (FE51 env loaded, isolated fe53 runtime) → **1 passed / 0 failed / 0 skipped** in 2.4 minutes on Chromium, after the focus-visible production edits. The production class-only changes do not regress the real-backend flow.
+- An intermediate rerun without the FE51 env failed fast with the fixture's own BLOCKED preflight message (`missing FE51_*`) — correct fail-closed behavior, not a skip.

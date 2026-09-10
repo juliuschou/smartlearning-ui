@@ -148,6 +148,73 @@ describe("participant realtime recovery", () => {
     expect(conn.sendSnapshotFetch).toHaveBeenCalledTimes(1);
     expect(conn.sendSnapshotFetch).toHaveBeenCalledWith();
   });
+  it.each([
+    [
+      "poll single",
+      "poll",
+      { options: [{ optionRef: "a", text: "A", count: 1 }] },
+    ],
+    [
+      "poll multiple",
+      "poll",
+      { options: [{ optionRef: "a", text: "A", count: 1 }] },
+    ],
+    [
+      "quiz",
+      "quiz",
+      { options: [{ optionRef: "a", text: "A", isCorrect: true }] },
+    ],
+    ["open text", "open_text", { answers: [{ text: "匿名答案" }] }],
+  ])(
+    "updates only the participant result cache for %s and rejects older events",
+    (_label, _questionType, results) => {
+      const client = new QueryClient();
+      const conn = connection();
+      const participantKey = queryKeys.participantLiveSessions.results(
+        "student",
+        "s1",
+        "q1",
+      );
+      const teacherKey = queryKeys.liveSessions.results("s1", "q1");
+      const invalidateQueries = vi.spyOn(client, "invalidateQueries");
+      client.setQueryData(teacherKey, { teacherOnly: true });
+      function Harness() {
+        useParticipantLiveSessionEvents("s1", conn);
+        return null;
+      }
+      render(<Harness />, { wrapper: wrapper(client) });
+      act(() =>
+        emit(
+          RealtimeEvent.RESULT_UPDATED,
+          envelope(
+            RealtimeEvent.RESULT_UPDATED,
+            { sessionQuestionId: "q1", results },
+            "12",
+          ),
+        ),
+      );
+      expect(client.getQueryData(participantKey)).toEqual(results);
+      expect(client.getQueryData(teacherKey)).toEqual({ teacherOnly: true });
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: participantKey,
+      });
+      expect(invalidateQueries).not.toHaveBeenCalledWith({
+        queryKey: teacherKey,
+      });
+      act(() =>
+        emit(
+          RealtimeEvent.RESULT_UPDATED,
+          envelope(
+            RealtimeEvent.RESULT_UPDATED,
+            { sessionQuestionId: "q1", results: { stale: true } },
+            "11",
+          ),
+        ),
+      );
+      expect(client.getQueryData(participantKey)).toEqual(results);
+    },
+  );
+
   it("does not register counts.updated and cleans listeners on unmount", () => {
     const client = new QueryClient();
     const conn = connection();

@@ -552,6 +552,35 @@ describe("LearnerLiveSessionView (FE-4.1 CP3)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("converges from a stale active snapshot to a closed read-only question", async () => {
+    apiRequestMock
+      .mockResolvedValueOnce(
+        snapshot({ status: "active", sessionQuestions: [openQuestion()] }),
+      )
+      .mockResolvedValueOnce(
+        snapshot({
+          status: "active",
+          sessionQuestions: [{ ...openQuestion(), status: "closed" }],
+        }),
+      );
+    renderView();
+    await waitFor(() =>
+      expect(screen.getByText("你最喜歡哪個科目？")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("radio", { name: "數學" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "更新課堂狀態" }));
+    await waitFor(() =>
+      expect(screen.getByText("正在同步課堂狀態…")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("進行中")).toBeInTheDocument();
+    expect(screen.getByText("你最喜歡哪個科目？")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "數學" })).toBeInTheDocument();
+    expect(
+      screen.queryByText(/已加入人數|已作答人數|結束課堂/),
+    ).not.toBeInTheDocument();
+  });
+
   it("never renders teacher-only data or an answering control", async () => {
     apiRequestMock.mockResolvedValueOnce(
       snapshot({ status: "active", sessionQuestions: [openQuestion()] }),

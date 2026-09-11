@@ -168,3 +168,10 @@
 - **偵測訊號**：`toBeChecked()` 失敗但 focus 正確；addEventListener("click") 計數為 0。
 - **預防規則**：Space 一律寫 `keyboard(" ")`；其他具名鍵（ArrowDown、Enter、Tab）目前不受影響。新增 keyboard 測試時先用 click 計數確認 keyup 行為有觸發。
 - **Tripwire**：grep 測試中的 `keyboard("{Space}")` — 應為 0 matches。
+
+## Browser cleanup must preserve the primary failure and lifecycle state
+
+- **失敗模式**：長時間 Playwright scenario 的未命中 `waitForRequest` 吃完整體 timeout；`finally` 再使用已被關閉的 BrowserContext 執行 cleanup，或把 cancelled/waiting session 傳給只接受 active 的 close helper，最後 cleanup exception 覆蓋真正卡住步驟。
+- **偵測訊號**：報告只剩 `Test timeout exceeded` 與 `Target page, context or browser has been closed`，沒有原始 assertion/request wait；cleanup 同時出現 `live session state before close`。
+- **預防規則**：mutation wait 必須以實際 transport ID（例如 `sessionQuestion.id`，不是 question-definition ID）匹配且設定短 timeout；scenario 預留 teardown budget，以 `primaryError + cleanupErrors` 保留原始錯誤；cleanup 依 lifecycle 只 close active、cancel waiting、跳過 terminal state。
+- **Tripwire**：新增 real-browser lifecycle spec 時，逐一核對 request URL 的 ID domain，grep `finally` 內無條件 `cleanup.assertClean()`／無條件 `closeSession()`；故障 rerun 必須能顯示具名 `test.step` 與 retained trace。

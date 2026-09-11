@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const fe51BackendOrigin = process.env.FE51_BACKEND_ORIGIN;
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["localhost", "127.0.0.1"],
   async rewrites() {
     if (!fe51BackendOrigin) return [];
     return [

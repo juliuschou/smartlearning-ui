@@ -14,7 +14,7 @@ const browserBaseURL =
   process.env.FE41_UI_ORIGIN ??
   process.env.FE22_UI_ORIGIN ??
   process.env.FE13_UI_ORIGIN ??
-  "http://localhost:3001";
+  "http://127.0.0.1:3001";
 const apiBaseURL =
   process.env.FE51_API_BASE ??
   process.env.FE44_API_BASE ??
@@ -22,7 +22,7 @@ const apiBaseURL =
   process.env.FE41_API_BASE ??
   process.env.FE22_API_BASE ??
   process.env.FE13_API_BASE ??
-  "http://localhost:3000/api/v1";
+  "http://127.0.0.1:3000/api/v1";
 const useHttpsFixture = browserBaseURL.startsWith("https://");
 const backendOrigin = new URL(apiBaseURL).origin;
 const useExternalServer = process.env.FE51_EXTERNAL_SERVER === "1";

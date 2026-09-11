@@ -2633,3 +2633,40 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 - UI commit `a9760b3` — FE-5.4.2/5.4.3 dedicated evidence (keyboard matrix, semantic matrix, focus-visible production parity fixes, user-event `{Space}` tripwire).
 - Docs commit `e714a39` (智學互動平台 repo): FE-5.4.3 checked; 2026-09-10 closeout paragraph added; stale FE-5.1 summary line updated. Only FE-5.4 hunks staged — other sessions' BE-5/FE-6 working-tree edits left untouched.
 - **FE-5.4.1–FE-5.4.5 now all closed.** QA-2.4, QA-2.6, FE-7, BE-4 and release remain open, untouched.
+
+## 2026-09-10 — QA-2.4 closeout (evidence citation only)
+
+- **QA-2.4 Student four-question classroom → CLOSED.** The already-verified 2026-09-10 FE-5.4 real-backend Chromium matrix (`test/browser/fe-5-4-four-question-matrix.spec.ts`, FE51 env + isolated fe53 runtime, **1 passed / 0 failed / 0 skipped**, 2.4 min, `--workers=1`) covers the student four-question classroom scope: all four question types join→answer→submit→result on mobile 390×844 + desktop, request Origin/CSRF/Idempotency-Key/body assertions, participant-safe result negative checks, close-first stale-submit, duplicate-submit, and account-disable cleanup (UI commit `a9760b3`, including the post-fix rerun). No new test run and no production code change — this is a WBS evidence-citation closeout only.
+- **WBS updated** in the 智學互動平台 docs repo: QA-2.4 checked + closeout paragraph added. Staged **only** that hunk (other sessions' BE-5/FE-6 working-tree edits left untouched).
+- **Scope boundary:** QA-2.3 teacher classroom, QA-2.6 privacy/reveal, QA-2.7, FE-7, BE-4, and overall release remain open, untouched.
+
+## 2026-09-10 — FE-3.3.8 Teacher classroom browser acceptance
+
+### What changed
+
+- Added `test/browser/fe-3-3-8-teacher-classroom.spec.ts`, a single serial Chromium scenario using the existing FE51 real-backend fixture and no production-code changes.
+- The scenario provisions isolated teacher/student/course/poll/quiz/session data, drives the teacher deep-link classroom, joins and submits from a separate student context, verifies teacher counts and quiz correctness, exercises close/cancel lifecycle dialogs, validates Origin/CSRF headers, checks not-found handling, and checks mobile/desktop horizontal overflow.
+- Cleanup uses the fixture ledger and only identity-validated dynamically-created account/course IDs.
+
+### Verification
+
+- `npx prettier --write test/browser/fe-3-3-8-teacher-classroom.spec.ts` → PASS.
+- `npm run typecheck` → PASS.
+- `npm run test:browser -- --list test/browser/fe-3-3-8-teacher-classroom.spec.ts` → PASS; 1 Chromium test discovered.
+- `git diff --check` → PASS.
+- Initial real FE51 execution was blocked by runtime/IPv6 routing and later exposed the diagnostic/cleanup issues recorded below; these were fixed before closeout.
+
+### Scope boundary
+
+- FE-3.3.8 is closed only for the dedicated teacher-classroom browser acceptance scope.
+- QA-2.3, QA-2.6, FE-7, BE-4, and overall release remain open and untouched.
+
+### Timeout／diagnostic hardening — 2026-09-11
+
+- **Root cause:** the spec used question-definition IDs in teacher close/result lifecycle waits, while the live-session routes require generated `sessionQuestion.id` values. The unmatched `waitForRequest` could consume the scenario timeout. The finalizer then called `closeSession()` for cancelled/waiting sessions and threw `cleanup.assertClean()`, masking the primary failure after Playwright closed the browser contexts.
+- **Fix:** resolve both session-question IDs from authoritative teacher detail after start; split the flow into named `test.step()` phases; add explicit operation timeouts, a scenario deadline with cleanup reserve, retained failure traces, and last-observed count diagnostics. Preserve `primaryError` and append cleanup failures instead of replacing it. Cleanup now tracks lifecycle state, closes only active primary sessions, and cancels only unfinished waiting secondary sessions.
+- **Credential guard:** optional FE51 teacher username/password must be supplied as a pair; generated-teacher temp/final passwords are explicit.
+- **Scope:** timeout/cleanup hardening is local to `test/browser/fe-3-3-8-teacher-classroom.spec.ts`; no application component, API client, backend, or shared fixture behavior changed. The previously requested Playwright IPv4 defaults and Next dev-origin allowance remain separate harness configuration changes.
+- **Static verification:** targeted Prettier and ESLint PASS; `npm run typecheck` PASS; Playwright discovery PASS (1 Chromium test).
+- **Real-browser verification:** FE53 DB/backend healthy; `/health/ready` HTTP 200; `NODE_OPTIONS=--dns-result-order=ipv4first npm run test:browser -- --project=chromium --workers=1 test/browser/fe-3-3-8-teacher-classroom.spec.ts` → **1 passed / 0 failed / 0 skipped** in **2.4 minutes**. Cleanup completed without masking errors.
+- **Closeout boundary:** this is FE-3.3.8 evidence only. QA-2.3, QA-2.6, FE-7, BE-4, and overall release remain open pending separate authorization/evidence aggregation.

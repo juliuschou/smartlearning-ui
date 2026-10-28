@@ -2670,3 +2670,26 @@ CP1 is complete and verified. Stop here until the user explicitly approves CP2 r
 - **Static verification:** targeted Prettier and ESLint PASS; `npm run typecheck` PASS; Playwright discovery PASS (1 Chromium test).
 - **Real-browser verification:** FE53 DB/backend healthy; `/health/ready` HTTP 200; `NODE_OPTIONS=--dns-result-order=ipv4first npm run test:browser -- --project=chromium --workers=1 test/browser/fe-3-3-8-teacher-classroom.spec.ts` → **1 passed / 0 failed / 0 skipped** in **2.4 minutes**. Cleanup completed without masking errors.
 - **Closeout boundary:** this is FE-3.3.8 evidence only. QA-2.3, QA-2.6, FE-7, BE-4, and overall release remain open pending separate authorization/evidence aggregation.
+
+
+# 2026-09-14 — Authorized W1–W8 Testing
+
+- [x] Preflight local disposable backend target — initially blocked by missing `DB_PASSWORD`; then resolved with gitignored test-only credentials.
+- [x] Capture revisions and runtime metadata: UI 9cf7c5d, backend b9bcd2b, Node v26.5.1, npm 11.17.0.
+- [x] Verify harness availability — no Artillery/k6/custom load harness, W1–W8 scripts, or measured report found.
+- [x] Run non-destructive smoke — backend liveness/readiness now passes.
+- [ ] Run W1/W2 smoke — not started; fixture and cleanup workflow still need a dedicated harness.
+- [ ] Reconcile authority state — not started.
+- [x] W1–W8 report disposition — BLOCKED, not PASS/FAIL; no measurements exist.
+- [x] UI verification — SKIPPED; no UI product files changed.
+- [x] git diff --check.
+
+## Results
+
+- Disposable stack is healthy: Postgres on host port 5433, Redis healthy, migrate exit 0, backend healthy on port 3000.
+- `GET /health/live` and `GET /health/ready` both returned HTTP 200; readiness reported DB and login-rate-limit Redis healthy.
+- Database identity verified as `smartlearning` / `smartlearning`; Redis returned `PONG`.
+- Test-only secrets were written only to the backend's gitignored `.env.production`; no secret values were printed.
+- Production-mode validation required Redis-backed login rate limiting and non-local manifest configuration; retention operations remain disabled and the S3 endpoint is a non-routable placeholder.
+- Existing Playwright and backend functional tests are not capacity evidence.
+- W1–W8 remains BLOCKED pending a dedicated load driver, 300-client fixture generation, telemetry, and authority reconciliation.

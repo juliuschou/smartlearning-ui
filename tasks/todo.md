@@ -121,3 +121,53 @@
 - `npm run lint`：通過；ESLint 提示專案目前沒有 `pages/` 或 `src/pages/` 目錄。
 - `npm run typecheck`：因既有 `.next/dev/types/validator.ts` 引用不存在的 `app/**` 路由而失敗（19 個 TS2307）；沒有新增元件或測試相關型別錯誤。
 - `git diff --check`：通過。
+
+
+# Task: 新增雛形共用樣式至 UI 專案
+
+## Acceptance criteria
+- [x] 建立可共用的 CSS 樣式檔並沿用雛形視覺基礎。
+- [x] Next.js 根版面載入全域樣式；不新增頁面或業務功能。
+- [x] 不把原型的登入、控制台、學員或投影版型搬入 UI 專案。
+
+## Checklist
+- [x] 新增 Tailwind CSS 4 相容的全域樣式及 Next.js 根版面。
+- [x] 驗證 lint、typecheck、build 與 diff，記錄既有限制。
+
+## Working notes
+- 專案原先沒有 `app/`、layout 或 CSS 入口；本次新增根版面匯入 CSS，沒有新增頁面路由。
+- 沿用 `@tailwindcss/postcss` 和 Tailwind v4 的 `@import "tailwindcss";`，不新增套件。
+
+## Results
+- 新增 `app/globals.css`，放入雛形色彩／字體變數、紙白背景、基本字體和焦點外框；另提供 `.ui-heading`、`.ui-link` 共用類別。未搬入原型的頁面版型，也不覆蓋現有 Tailwind 元件類別。
+- 新增 `app/layout.tsx` 匯入全域 CSS，提供 `zh-Hant` 文件語系及基本 Next.js 根結構。
+- `npm run lint`：通過，無診斷。
+- `npm run typecheck`：受 `.next/dev/types/validator.ts` 中 18 個既有路由模組找不到錯誤阻擋（TS2307），例如不存在的 `app/page.js` 及其他 route/layout；沒有指向新增 CSS／layout 的錯誤。
+- `npm run build`：CSS／Next.js 編譯成功；在 TypeScript 檢查階段因同一批 `.next/dev/types/validator.ts` 缺失路由錯誤失敗。
+- `git diff --check`：通過；另檢查新檔案無行尾空白。
+
+
+# Task: 建立可分開啟動的管理端與學員端 Next.js 空殼
+
+## Acceptance criteria
+- [x] 在 UI workspace 中建立兩個獨立 Next.js app，分別供管理端與學員端使用。
+- [x] 兩端有各自最小首頁與版面，使用不同連接埠，可各自啟動並能同時運行。
+- [x] 原有共用 CSS、依賴、`src/`、`lib/` 與測試保留；後端專案不納入 workspace。
+- [x] 不加入登入、API 或其他產品功能。
+
+## Checklist
+- [x] 設定 npm workspace 與根層啟動指令。
+- [x] 建立兩端 app、必要設定及共用樣式載入。
+- [x] 分別執行檢查、啟動各端並確認首頁回應。
+
+## Working notes
+- 管理端使用 3001，學員端使用 3002；根指令為 `npm run dev:admin` 和 `npm run dev:learner`。
+- 原根層 `app/globals.css` 已搬至 `packages/ui-styles/base.css`，兩個 app 的 Tailwind CSS 入口都載入同一份共用樣式。
+- 後端仍是獨立專案，沒有加入 workspace。
+
+## Results
+- 根 `package.json` 設定 npm workspaces、各端開發／建置／正式啟動指令；`package-lock.json` 更新 workspace 資訊，兩端沿用 Next.js 16.3.1、React 19.2.8 與 Tailwind CSS 4，沒有新增套件版本。
+- 新增 `apps/admin` 與 `apps/learner` 兩個 Next.js app，各有獨立首頁、版面、TypeScript、PostCSS 設定；保留既有管理端 Next 設定及共用 CSS，並讓兩端共用 `packages/ui-styles/base.css`。
+- 兩端各自 lint、typecheck、build 均通過；`npm test -- --run` 通過，4 個測試檔、23 個測試成功（Vitest 有一則既有 CommonJS/ESM 載入提示）。
+- 實際同時啟動兩端後，`http://127.0.0.1:3001/` 回傳管理端頁面標題「管理端｜智學互動平台」，`http://127.0.0.1:3002/` 回傳學員端頁面標題「學員端｜智學互動平台」；兩個頁面均包含各自空殼文字。驗證後已停止本次啟動的伺服器，兩個連接埠都已釋放。
+- `git diff --check`：通過。`npm install --package-lock-only --ignore-scripts` 回報目前相依套件有 18 項安全警示（10 項中等、7 項高、1 項嚴重）；此任務未進行相依套件更新或安全修補。

@@ -75,3 +75,26 @@
 - 專案目前沒有管理端／學員端畫面、活動模型、待機事件或服務端回覆可供比對。
 - `SocketConnectionStatus` 是連線狀況，不可和活動待機狀況混用。
 - 工作樹中的 `lib/live/socket-client.ts`、`test/socket-client.test.ts` 是既有未提交變更，保持不動。
+
+
+# Task: 建立共用讀取中、空狀態及錯誤提示元件
+
+## Acceptance criteria
+- [x] 提供可重複使用的讀取中、沒有資料、發生問題提示元件。
+- [x] 提示文字可讀，並讓輔助科技辨識讀取狀態與錯誤訊息。
+- [x] 錯誤元件可選擇提供重試按鈕；未提供時不顯示按鈕。
+- [x] 不新增頁面或業務功能，不加入新依賴。
+
+## Checklist
+- [x] 新增共用元件及元件測試。
+- [x] 執行測試、lint、typecheck 與 diff 檢查。
+
+## Working notes
+- 專案尚無既有 UI 元件或樣式規範；沿用已安裝 Tailwind CSS，採簡潔自適應樣式。
+
+## Results
+- 新增 `src/components/ui/LoadingMessage.tsx`、`EmptyMessage.tsx`、`ErrorMessage.tsx`，支援可設定訊息、標題、樣式 class，以及錯誤時選擇性重試。
+- `npm test -- --run test/components/messages.test.tsx`：通過，5/5 項測試成功。
+- `npm run lint`：通過；ESLint 提示專案目前沒有 `pages/` 或 `src/pages/` 目錄。
+- `npm run typecheck`：因既有 `.next/dev/types/validator.ts` 引用不存在的 `app/**` 路由而失敗（19 個 TS2307）；沒有新增元件或測試相關型別錯誤。
+- `git diff --check`：通過。

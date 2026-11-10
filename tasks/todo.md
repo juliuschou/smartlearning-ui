@@ -171,3 +171,30 @@
 - 兩端各自 lint、typecheck、build 均通過；`npm test -- --run` 通過，4 個測試檔、23 個測試成功（Vitest 有一則既有 CommonJS/ESM 載入提示）。
 - 實際同時啟動兩端後，`http://127.0.0.1:3001/` 回傳管理端頁面標題「管理端｜智學互動平台」，`http://127.0.0.1:3002/` 回傳學員端頁面標題「學員端｜智學互動平台」；兩個頁面均包含各自空殼文字。驗證後已停止本次啟動的伺服器，兩個連接埠都已釋放。
 - `git diff --check`：通過。`npm install --package-lock-only --ignore-scripts` 回報目前相依套件有 18 項安全警示（10 項中等、7 項高、1 項嚴重）；此任務未進行相依套件更新或安全修補。
+
+
+# Task: 合併管理端與學員端為單一網站
+
+## Acceptance criteria
+- [x] 只需一個 Next.js 專案、一個啟動指令與一個連接埠。
+- [x] 首頁清楚提供管理端和學員端入口，兩個頁面可從同一網址開啟。
+- [x] 保留共用樣式、後端轉送設定及現有依賴／測試。
+- [x] 不增加登入或業務功能。
+
+## Checklist
+- [x] 將兩端空殼整合到根 App Router，新增首頁入口選擇。
+- [x] 移除 workspace 和重複 app 設定，恢復單一啟動指令。
+- [x] 驗證三個路徑、建置、測試及啟動方式。
+
+## Working notes
+- 單一前端使用既有 3001 連接埠；後端 API 預設 3000 不變。
+- 保留共用樣式 `packages/ui-styles/base.css`，單一 `app/globals.css` 匯入。
+- 管理端與學員端頁面都提供「返回入口」連結，方便切換。
+
+## Results
+- 將兩端整合為根 Next.js app：`/` 提供入口選擇，`/admin` 與 `/learner` 分別呈現對應空殼；只需 `npm run dev`，共用網址與 3001 連接埠。
+- 移除 npm workspace 與兩套重複設定；恢復根 `next.config.ts` 的 `/api/*`、`/health/*` 轉送規則，只有設定 `FE51_BACKEND_ORIGIN` 才啟用。保留 `packages/ui-styles/base.css`，由單一 CSS 入口載入。
+- `npm run lint`：通過。`npm run typecheck`：通過。`npm test -- --run`：通過，4 個測試檔、23 項測試成功（僅有非阻擋的 Vite 設定載入提示）。`npm run build`：通過，產生 `/`、`/admin`、`/learner` 等路徑。
+- 實際執行 `npm run dev` 後，`http://127.0.0.1:3001/`、`/admin`、`/learner` 均回傳正確頁面標題與內容；驗證後已停止伺服器，3001 埠已釋放。
+- 首次檢查時，生成的 `.next/dev/types/validator.ts` 還引用先前已移除的 workspace 路徑，造成 typecheck/build 暫時失敗；重新驗證後兩項均通過。
+- `git diff --check`：通過。Next.js 自動建立根層 `AGENTS.md` 和 `CLAUDE.md`，一併保留其版本指引。

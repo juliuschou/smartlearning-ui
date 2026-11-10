@@ -1,0 +1,45 @@
+/* 共用視覺基礎：沿用「課堂教具」的靛墨與冷灰紙白方向。 */
+:root {
+  --ink: #23315c;
+  --ink-deep: #18254a;
+  --paper: #f6f7f4;
+  --card: #ffffff;
+  --garnet: #dfa320;
+  --pine: #2e7d6b;
+  --cinnabar: #b5482f;
+  --grey: #565e6b;
+  --line: #d8dce4;
+  --serif: "Noto Serif TC", "PMingLiU", serif;
+  --sans: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --text: #1c2433;
+}
+
+html {
+  min-height: 100%;
+  background: var(--paper);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid #7a8cc4;
+  outline-offset: 2px;
+}
+
+/* 需要明確採用教材風格字體或主色連結時，元件可套用這些共用類別。 */
+.ui-heading {
+  color: var(--ink);
+  font-family: var(--serif);
+}
+
+.ui-link {
+  color: var(--ink);
+}

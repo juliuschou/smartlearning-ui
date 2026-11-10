@@ -50,6 +50,29 @@
 - `git diff --check`：通過。
 
 
+# Task: 整理雛形共用初始樣式
+
+## Acceptance criteria
+- [x] 依雛形設計整理共用色彩／字體 token、基礎元素與通用元件樣式。
+- [x] 保留管理端、學員端與投影端頁面專屬樣式，不改既有視覺方向或 HTML/JS 行為。
+- [x] 保留鍵盤焦點、reduced-motion 與窄螢幕響應式規則。
+
+## Checklist
+- [x] 整理 `docs/智學互動平台/80_系統雛形/assets/style.css` 區塊與註解。
+- [x] 核對三頁共用 stylesheet 引用及 CSS 差異。
+- [x] 執行可用的 CSS 語法／瀏覽器檢查與 `git diff --check`。
+
+## Working notes
+- 原型為獨立純 HTML/CSS/JS；smartLearning-ui 沒有現行全域 CSS 入口，故本次僅整理原型 stylesheet，不移植至 UI app。
+- 視覺基準為課堂教具：靛墨、冷灰紙白、梔子黃、松石、朱砂；樣式中含頁面專屬規則，勿提升為通用元件。
+
+## Results
+- 更新 `docs/智學互動平台/80_系統雛形/assets/style.css` 的文件標題與分區註解，明確區分設計 tokens／基礎、共用元件、頁面專屬樣式及動效／可及性／響應式層；未改變任何 CSS selector 或屬性值，三個視角仍共用原單一 stylesheet。
+- `git -C /home/user/projects/smartLearning/docs diff --check` 與 UI repo `git diff --check`：通過。
+- Playwright 瀏覽器檢查 `index.html`、`learner.html`、`projection.html`，各以 1280×900 與 390×844 載入：6 組皆 HTTP 200、CSS 載入成功、CSSOM 120 rules、無 page/console/request errors，且無水平溢出。
+- 原型文件位於獨立 `docs` Git repo；該 repo 另有既存 `40_開發規劃/WBS_前後端開發_實作任務_SubChecklist.md` 修改，本次未觸及。
+
+
 # Task: 定義管理端／學員端共用待機狀況資料
 
 ## Acceptance criteria
